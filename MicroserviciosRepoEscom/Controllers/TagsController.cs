@@ -57,10 +57,22 @@ namespace MicroserviciosRepoEscom.Controllers
 
         // POST: api/Tags
         [HttpPost]
-        public async Task<ActionResult<Tag>> CreateTag(Tag tag)
+        public async Task<ActionResult<Tag>> CreateTag(TagCreateDTO tagDTO)
         {
             try
             {
+                // Verificar si ya existe un tag con el mismo nombre
+                var existingTag = await _tagsRepository.BuscarTagPorNombre(tagDTO.Nombre);
+                if(existingTag != null)
+                {
+                    return Conflict($"Ya existe un tag con el nombre '{tagDTO.Nombre}'");
+                }
+
+                var tag = new Tag
+                {
+                    Nombre = tagDTO.Nombre
+                };
+
                 var id = await _tagsRepository.CreateTag(tag);
                 tag.Id = id;
 
@@ -75,7 +87,7 @@ namespace MicroserviciosRepoEscom.Controllers
 
         // PUT: api/Tags/5
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateTag(int id, Tag tag)
+        public async Task<IActionResult> UpdateTag(int id, TagUpdateDTO tagDTO)
         {
             try
             {
@@ -86,7 +98,16 @@ namespace MicroserviciosRepoEscom.Controllers
                     return NotFound();
                 }
 
-                var result = await _tagsRepository.UpdateTag(id, tag);
+                // Verificar si ya existe otro tag con el mismo nombre
+                var tagConNombre = await _tagsRepository.BuscarTagPorNombre(tagDTO.Nombre);
+                if(tagConNombre != null && tagConNombre.Id != id)
+                {
+                    return Conflict($"Ya existe otro tag con el nombre '{tagDTO.Nombre}'");
+                }
+
+                existingTag.Nombre = tagDTO.Nombre;
+
+                var result = await _tagsRepository.UpdateTag(id, existingTag);
 
                 if(result)
                 {

@@ -14,7 +14,6 @@ namespace MicroserviciosRepoEscom.Models
 
         // Nuevo campo para determinar el tipo de archivo (PDF o ZIP)
         public string TipoArchivo { get; set; } = string.Empty;
-        public string? RutaAcceso { get; set; } // Nueva propiedad para path/url específico
 
         public string FechaCreacion { get; set; } = string.Empty;
         public string FechaActualizacion { get; set; } = string.Empty;

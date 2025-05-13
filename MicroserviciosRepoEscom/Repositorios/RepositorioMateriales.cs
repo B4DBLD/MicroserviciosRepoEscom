@@ -29,7 +29,7 @@ namespace MicroserviciosRepoEscom.Repositorios
 
             using var command = connection.CreateCommand();
             command.CommandText = @"
-                SELECT id, nombre, url, fechaCreacion, fechaActualizacion 
+                SELECT id, nombre, url, tipoArchivo, fechaCreacion, fechaActualizacion 
                 FROM Material";
 
             using var reader = await command.ExecuteReaderAsync();
@@ -42,8 +42,9 @@ namespace MicroserviciosRepoEscom.Repositorios
                     Id = reader.GetInt32(0),
                     Nombre = reader.GetString(1),
                     Url = reader.GetString(2),
-                    FechaCreacion = reader.GetString(3),
-                    FechaActualizacion = reader.GetString(4)
+                    TipoArchivo = reader.GetString(3),
+                    FechaCreacion = reader.GetString(4),
+                    FechaActualizacion = reader.GetString(5)
                 });
             }
 
@@ -58,7 +59,7 @@ namespace MicroserviciosRepoEscom.Repositorios
             // Obtener el material
             using var command = connection.CreateCommand();
             command.CommandText = @"
-                SELECT id, nombre, url, tipoArchivo, rutaAcceso, fechaCreacion, fechaActualizacion 
+                SELECT id, nombre, url, tipoArchivo, fechaCreacion, fechaActualizacion 
                 FROM Material 
                 WHERE id = @id";
             command.Parameters.AddWithValue("@id", id);
@@ -76,9 +77,8 @@ namespace MicroserviciosRepoEscom.Repositorios
                 Nombre = reader.GetString(1),
                 Url = reader.GetString(2),
                 TipoArchivo = reader.GetString(3),
-                rutaAcceso = reader.GetString(4),
-                FechaCreacion = reader.GetString(5),
-                FechaActualizacion = reader.GetString(6),
+                FechaCreacion = reader.GetString(4),
+                FechaActualizacion = reader.GetString(5),
                 Autores = new List<Autor>(),
                 Tags = new List<Tag>()
             };
@@ -145,18 +145,8 @@ namespace MicroserviciosRepoEscom.Repositorios
             {
                 // Determinar la ruta de acceso según el tipo
                 string rutaAcceso;
-                if(tipoArchivo == "PDF")
-                {
-                    // Para PDF, guardar la ruta física completa
-                    rutaAcceso = Path.Combine(_uploadsFolder, fileUrl);
-                }
-                else // ZIP
-                {
-                    // Para ZIP, guardar la URL del servicio Docker
-                    string dockerUrl = _configuration["DockerViewerService:BaseUrl"] ?? "http://158.23.160.166:8080/";
-                    // Asumimos que el ID se generará después de la inserción, así que dejamos un placeholder
-                    rutaAcceso = $"{dockerUrl}view?id="; // Se completará después
-                }
+                rutaAcceso = Path.Combine(_uploadsFolder, fileUrl);
+                
 
                 // Crear el material
                 int materialId;
@@ -164,32 +154,15 @@ namespace MicroserviciosRepoEscom.Repositorios
                 {
                     command.Transaction = transaction;
                     command.CommandText = @"
-                INSERT INTO Material (nombre, url, tipoArchivo, rutaAcceso, fechaCreacion, fechaActualizacion)
-                VALUES (@nombre, @url, @tipoArchivo, @rutaAcceso, datetime('now', 'utc'), datetime('now', 'utc'));
-                SELECT last_insert_rowid();";
+                    INSERT INTO Material (nombre, url, tipoArchivo, fechaCreacion, fechaActualizacion)
+                    VALUES (@nombre, @url, @tipoArchivo, datetime('now', 'utc'), datetime('now', 'utc'));
+                    SELECT last_insert_rowid();";
 
                     command.Parameters.AddWithValue("@nombre", material.Nombre);
-                    command.Parameters.AddWithValue("@url", fileUrl);
+                    command.Parameters.AddWithValue("@url", rutaAcceso);
                     command.Parameters.AddWithValue("@tipoArchivo", tipoArchivo);
-                    command.Parameters.AddWithValue("@rutaAcceso", rutaAcceso);
 
                     materialId = (int)(long)await command.ExecuteScalarAsync();
-                }
-
-                // Para ZIP, ahora que tenemos el ID, actualizar la rutaAcceso con el ID correcto
-                if(tipoArchivo == "ZIP")
-                {
-                    string dockerUrl = _configuration["DockerViewerService:BaseUrl"] ?? "http://158.23.160.166:8080/";
-                    string rutaActualizada = $"{dockerUrl}view?id={materialId}";
-
-                    using(var updateCommand = connection.CreateCommand())
-                    {
-                        updateCommand.Transaction = transaction;
-                        updateCommand.CommandText = "UPDATE Material SET rutaAcceso = @rutaAcceso WHERE id = @id";
-                        updateCommand.Parameters.AddWithValue("@rutaAcceso", rutaActualizada);
-                        updateCommand.Parameters.AddWithValue("@id", materialId);
-                        await updateCommand.ExecuteNonQueryAsync();
-                    }
                 }
 
                 // Relacionar con autores
@@ -567,7 +540,123 @@ namespace MicroserviciosRepoEscom.Repositorios
 
         public async Task<IEnumerable<MaterialConRelacionesDTO>> SearchMaterialesAvanzado(BusquedaDTO busqueda)
         {
-            return await SearchMateriales(busqueda.AutorNombre, busqueda.Tags);
+            using var connection = new SqliteConnection(_dbConfig.ConnectionString);
+            await connection.OpenAsync();
+
+            // Construir consulta SQL con condiciones dinámicas
+            var sqlBuilder = new StringBuilder();
+            sqlBuilder.AppendLine("SELECT DISTINCT m.id FROM Material m");
+
+            bool hasAutorFilter = !string.IsNullOrEmpty(busqueda.AutorNombre);
+            bool hasTagFilter = busqueda.Tags != null && busqueda.Tags.Count > 0;
+            bool hasNombreFilter = !string.IsNullOrEmpty(busqueda.MaterialNombre);
+
+            // Agregar joins necesarios según filtros
+            if(hasAutorFilter)
+            {
+                sqlBuilder.AppendLine("JOIN AutorMaterial am ON m.id = am.materialId");
+                sqlBuilder.AppendLine("JOIN Autor a ON am.autorId = a.id");
+            }
+
+            if(hasTagFilter)
+            {
+                sqlBuilder.AppendLine("JOIN MaterialTag mt ON m.id = mt.materialId");
+                sqlBuilder.AppendLine("JOIN Tag t ON mt.tagId = t.id");
+            }
+
+            // Construir la parte WHERE de la consulta
+            List<string> whereConditions = new List<string>();
+
+            if(hasNombreFilter)
+            {
+                whereConditions.Add("m.nombre LIKE @nombre");
+            }
+
+            if(hasAutorFilter)
+            {
+                // Dividir el nombre del autor para buscar
+                string[] autorTerms = busqueda.AutorNombre.Split(' ', 2);
+                if(autorTerms.Length >= 2)
+                {
+                    // Buscar por nombre Y apellido
+                    whereConditions.Add("(a.nombre LIKE @autorNombre AND a.apellido LIKE @autorApellido)");
+                }
+                else
+                {
+                    // Buscar por nombre O apellido
+                    whereConditions.Add("(a.nombre LIKE @autorTermino OR a.apellido LIKE @autorTermino)");
+                }
+            }
+
+            if(hasTagFilter)
+            {
+                List<string> tagConditions = new List<string>();
+                for(int i = 0; i < busqueda.Tags.Count; i++)
+                {
+                    tagConditions.Add($"t.name LIKE @tag{i}");
+                }
+                whereConditions.Add($"({string.Join(" OR ", tagConditions)})");
+            }
+
+            // Agregar condiciones WHERE si hay alguna
+            if(whereConditions.Count > 0)
+            {
+                sqlBuilder.AppendLine($"WHERE {string.Join(" AND ", whereConditions)}");
+            }
+
+            using var command = connection.CreateCommand();
+            command.CommandText = sqlBuilder.ToString();
+
+            // Agregar parámetros
+            if(hasNombreFilter)
+            {
+                command.Parameters.AddWithValue("@nombre", $"%{busqueda.MaterialNombre}%");
+            }
+
+            if(hasAutorFilter)
+            {
+                string[] autorTerms = busqueda.AutorNombre.Split(' ', 2);
+                if(autorTerms.Length >= 2)
+                {
+                    command.Parameters.AddWithValue("@autorNombre", $"%{autorTerms[0]}%");
+                    command.Parameters.AddWithValue("@autorApellido", $"%{autorTerms[1]}%");
+                }
+                else
+                {
+                    command.Parameters.AddWithValue("@autorTermino", $"%{busqueda.AutorNombre}%");
+                }
+            }
+
+            if(hasTagFilter)
+            {
+                for(int i = 0; i < busqueda.Tags.Count; i++)
+                {
+                    command.Parameters.AddWithValue($"@tag{i}", $"%{busqueda.Tags[i]}%");
+                }
+            }
+
+            // Ejecutar consulta y obtener resultados
+            var materialIds = new List<int>();
+            using(var reader = await command.ExecuteReaderAsync())
+            {
+                while(await reader.ReadAsync())
+                {
+                    materialIds.Add(reader.GetInt32(0));
+                }
+            }
+
+            // Obtener detalles completos de cada material
+            var materiales = new List<MaterialConRelacionesDTO>();
+            foreach(var materialId in materialIds)
+            {
+                var material = await GetMaterialById(materialId);
+                if(material != null)
+                {
+                    materiales.Add(material);
+                }
+            }
+
+            return materiales;
         }
     }
 }

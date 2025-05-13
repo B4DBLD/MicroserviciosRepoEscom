@@ -71,10 +71,9 @@ namespace MicroserviciosRepoEscom.Controllers
                         var fileData = await _fileService.GetFile(material.Url);
 
                         // Crear un objeto anónimo con todas las propiedades originales más el blob
-                        dynamic resultado = material;
-                        resultado.blob = Convert.ToBase64String(fileData);
+                        material.Url = Convert.ToBase64String(fileData);
 
-                        return Ok(resultado);
+                        return Ok(material);
                     }
                     catch(FileNotFoundException)
                     {
@@ -143,11 +142,18 @@ namespace MicroserviciosRepoEscom.Controllers
 
         // GET: api/Materiales/Search?autorNombre=nombre&tags=tag1&tags=tag2
         [HttpGet("Search")]
-        public async Task<ActionResult<IEnumerable<MaterialConRelacionesDTO>>> SearchMateriales([FromQuery] string? autorNombre, [FromQuery] List<string>? tags)
+        public async Task<ActionResult<IEnumerable<MaterialConRelacionesDTO>>> SearchMateriales([FromQuery] string? materialNombre, [FromQuery] string? autorNombre, [FromQuery] List<string>? tags)
         {
+
             try
             {
-                var materiales = await _materialesRepository.SearchMateriales(autorNombre, tags);
+                var busqueda = new BusquedaDTO
+                {
+                    MaterialNombre = materialNombre,
+                    AutorNombre = autorNombre,
+                    Tags = tags
+                };
+                var materiales = await _materialesRepository.SearchMaterialesAvanzado(busqueda);
                 return Ok(materiales);
             }
             catch(Exception ex)
@@ -157,69 +163,7 @@ namespace MicroserviciosRepoEscom.Controllers
             }
         }
 
-        // POST: api/Materiales/SearchAdvanced
-        [HttpPost("SearchAdvanced")]
-        public async Task<ActionResult<IEnumerable<MaterialConRelacionesDTO>>> SearchMaterialesAvanzado(BusquedaDTO busqueda)
-        {
-            try
-            {
-                var materiales = await _materialesRepository.SearchMaterialesAvanzado(busqueda);
-                return Ok(materiales);
-            }
-            catch(Exception ex)
-            {
-                _logger.LogError(ex, "Error al realizar búsqueda avanzada de materiales");
-                return StatusCode(500, "Error interno del servidor");
-            }
-        }
-
-        // POST: api/Materiales
-        [HttpPost]
-        public async Task<ActionResult<MaterialConRelacionesDTO>> CreateMaterial(MaterialCreateDTO materialDTO)
-        {
-            try
-            {
-                // Verificar que los autores existan
-                if(materialDTO.AutorIds != null)
-                {
-                    foreach(var autorId in materialDTO.AutorIds)
-                    {
-                        var autor = await _autoresRepository.GetAutorById(autorId);
-                        if(autor == null)
-                        {
-                            return BadRequest($"No existe un autor con ID {autorId}");
-                        }
-                    }
-                }
-                else
-                {
-                    return BadRequest("Debe especificar al menos un autor");
-                }
-
-                // Verificar que los tags existan (si se proporcionaron)
-                if(materialDTO.TagIds != null)
-                {
-                    foreach(var tagId in materialDTO.TagIds)
-                    {
-                        var tag = await _tagsRepository.GetTagById(tagId);
-                        if(tag == null)
-                        {
-                            return BadRequest($"No existe un tag con ID {tagId}");
-                        }
-                    }
-                }
-
-                var materialId = await _materialesRepository.CreateMaterial(materialDTO);
-                var material = await _materialesRepository.GetMaterialById(materialId);
-
-                return CreatedAtAction(nameof(GetMaterial), new { id = materialId }, material);
-            }
-            catch(Exception ex)
-            {
-                _logger.LogError(ex, "Error al crear material");
-                return StatusCode(500, "Error interno del servidor");
-            }
-        }
+        
 
         // POST: api/Materiales/Upload
         [HttpPost("Upload")]
