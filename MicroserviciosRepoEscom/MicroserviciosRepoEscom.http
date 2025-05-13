@@ -1,0 +1,6 @@
+@MicroserviciosRepoEscom_HostAddress = http://localhost:5083
+
+GET {{MicroserviciosRepoEscom_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
