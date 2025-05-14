@@ -1,7 +1,6 @@
 using MicroserviciosRepoEscom.Conexion;
 using MicroserviciosRepoEscom.Repositorios;
 using MicroserviciosRepoEscom.Servicios;
-using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 
@@ -63,19 +62,23 @@ builder.Services.AddScoped<IFileService, FileService>();
 
 // Add services to the container.
 
-builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll",
+        builder => builder
+            .AllowAnyOrigin()
+            .AllowAnyMethod()
+            .AllowAnyHeader());
+});
 
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+
+app.Urls.Add("http://10.0.0.4:8081");
+app.UseSwagger();
+app.UseSwaggerUI();
+
 
 app.Use(async (context, next) =>
 {

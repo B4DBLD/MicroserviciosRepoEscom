@@ -1,16 +1,19 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using MicroserviciosRepoEscom.Models;
+﻿using MicroserviciosRepoEscom.Models;
 using MicroserviciosRepoEscom.Repositorios;
 using MicroserviciosRepoEscom.Servicios;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.VisualBasic;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace MicroserviciosRepoEscom.Controllers
 {
-    [Route("api/[controller]")]
+    [Route("repositorio/[controller]")]
     [ApiController]
     public class MaterialesController : ControllerBase
     {
@@ -18,6 +21,7 @@ namespace MicroserviciosRepoEscom.Controllers
         private readonly InterfazRepositorioAutores _autoresRepository;
         private readonly InterfazRepositorioTags _tagsRepository;
         private readonly IFileService _fileService;
+        private readonly string _uploadsFolder;
         private readonly ILogger<MaterialesController> _logger;
 
         public MaterialesController(
@@ -56,6 +60,7 @@ namespace MicroserviciosRepoEscom.Controllers
         {
             try
             {
+                byte[] fileContent;
                 var material = await _materialesRepository.GetMaterialById(id);
 
                 if(material == null)
@@ -142,7 +147,7 @@ namespace MicroserviciosRepoEscom.Controllers
 
         // GET: api/Materiales/Search?autorNombre=nombre&tags=tag1&tags=tag2
         [HttpGet("Search")]
-        public async Task<ActionResult<IEnumerable<MaterialConRelacionesDTO>>> SearchMateriales([FromQuery] string? materialNombre, [FromQuery] string? autorNombre, [FromQuery] List<string>? tags)
+        public async Task<ActionResult<IEnumerable<MaterialConRelacionesDTO>>> SearchMateriales([FromQuery] string? materialNombre, [FromQuery] string? autorNombre, [FromQuery] List<int>? tags)
         {
 
             try
@@ -167,72 +172,87 @@ namespace MicroserviciosRepoEscom.Controllers
 
         // POST: api/Materiales/Upload
         [HttpPost("Upload")]
-        public async Task<ActionResult<MaterialConRelacionesDTO>> UploadMaterial([FromForm] string nombre, [FromForm] string autores, [FromForm] string? tags, IFormFile archivo)
+        public async Task<ActionResult<MaterialConRelacionesDTO>> UploadMaterial([FromForm] string datosJson, IFormFile archivo)
         {
             try
             {
-                // Validar los datos de entrada
-                if(string.IsNullOrEmpty(nombre))
-                {
-                    return BadRequest("El nombre del material es requerido");
-                }
+                datosJson = Strings.Replace(datosJson, "'", "");
 
-                if(string.IsNullOrEmpty(autores))
-                {
-                    return BadRequest("Debe especificar al menos un autor");
-                }
-
+                // Validar que el archivo existe
                 if(archivo == null || archivo.Length == 0)
                 {
                     return BadRequest("Debe proporcionar un archivo");
                 }
 
-                // Validar el tipo de archivo
+                // Validar extensión del archivo
                 var fileExtension = Path.GetExtension(archivo.FileName).ToLowerInvariant();
                 if(fileExtension != ".pdf" && fileExtension != ".zip")
                 {
                     return BadRequest("Tipo de archivo no permitido. Los formatos aceptados son: PDF y ZIP.");
                 }
 
-                // Determinar el tipo de archivo
+                // Deserializar el JSON
+                MaterialUploadDTO datos;
+                try
+                {
+                    datos = JsonSerializer.Deserialize<MaterialUploadDTO>(datosJson,
+                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                }
+                catch(Exception ex)
+                {
+                    return BadRequest($"Error al procesar el JSON: {ex.Message}");
+                }
+
+                // Validar los datos básicos
+                if(string.IsNullOrEmpty(datos.NombreMaterial))
+                {
+                    return BadRequest("El nombre del material es requerido");
+                }
+
+                if(datos.Autores == null || datos.Autores.Count == 0)
+                {
+                    return BadRequest("Debe especificar al menos un autor");
+                }
+
+                // Determinar tipo de archivo
                 string tipoArchivo = fileExtension == ".pdf" ? "PDF" : "ZIP";
 
-                // Guardar el archivo físicamente
-                string fileUrl = await _fileService.SaveFile(archivo);
+                // Guardar el archivo usando el servicio existente
+                string fileName = await _fileService.SaveFile(archivo);
 
-                // Procesar los nombres de autores
-                string[] nombreAutores = autores.Split(',')
-                    .Select(a => a.Trim())
-                    .Where(a => !string.IsNullOrEmpty(a))
-                    .ToArray();
-
-                // Procesar los nombres de tags (si se proporcionaron)
-                string[] nombreTags = string.IsNullOrEmpty(tags) ? Array.Empty<string>() :
-                    tags.Split(',')
-                        .Select(t => t.Trim())
-                        .Where(t => !string.IsNullOrEmpty(t))
-                        .ToArray();
-
-                // Obtener o crear autores
-                List<int> autorIds = new List<int>();
-                foreach(var nombreAutor in nombreAutores)
+                // Verificar que los TagIds son válidos
+                if(datos.TagIds != null && datos.TagIds.Count > 0)
                 {
-                    // Dividir en nombre y apellido (si es posible)
-                    string[] partes = nombreAutor.Split(' ', 2);
-                    string nombreParte = partes[0];
-                    string apellidoParte = partes.Length > 1 ? partes[1] : "";
+                    foreach(var tagId in datos.TagIds)
+                    {
+                        var tag = await _tagsRepository.GetTagById(tagId);
+                        if(tag == null)
+                        {
+                            return BadRequest($"El tag con ID {tagId} no existe");
+                        }
+                    }
+                }
 
-                    // Buscar si el autor ya existe
-                    var autor = await _autoresRepository.BuscarAutorPorNombreApellido(nombreParte, apellidoParte);
+                // Procesar los autores (crear nuevos o usar existentes)
+                List<int> autorIds = new List<int>();
+                foreach(var autor in datos.Autores)
+                {
+                    // Validar que el email es válido
+                    if(string.IsNullOrEmpty(autor.Email) || !IsValidEmail(autor.Email))
+                    {
+                        return BadRequest($"El email '{autor.Email}' no es válido");
+                    }
 
-                    if(autor == null)
+                    // Buscar por email
+                    var existingAutor = await _autoresRepository.GetAutorByEmail(autor.Email);
+                    if(existingAutor == null)
                     {
                         // Crear nuevo autor
                         var nuevoAutor = new Autor
                         {
-                            Nombre = nombreParte,
-                            Apellido = apellidoParte,
-                            Email = $"{nombreParte.ToLower()}.{apellidoParte.ToLower()}@example.com" // Email genérico ya que es requerido
+                            Nombre = autor.Nombre,
+                            Apellido = autor.Apellido,
+                            Email = autor.Email
                         };
 
                         int autorId = await _autoresRepository.CreateAutor(nuevoAutor);
@@ -240,45 +260,20 @@ namespace MicroserviciosRepoEscom.Controllers
                     }
                     else
                     {
-                        autorIds.Add(autor.Id);
+                        // Usar autor existente
+                        autorIds.Add(existingAutor.Id);
                     }
                 }
 
-                // Obtener o crear tags
-                List<int> tagIds = new List<int>();
-                foreach(var nombreTag in nombreTags)
-                {
-                    // Buscar si el tag ya existe
-                    var tag = await _tagsRepository.BuscarTagPorNombre(nombreTag);
-
-                    if(tag == null)
-                    {
-                        // Crear nuevo tag
-                        var nuevoTag = new Tag
-                        {
-                            Nombre = nombreTag
-                        };
-
-                        int tagId = await _tagsRepository.CreateTag(nuevoTag);
-                        tagIds.Add(tagId);
-                    }
-                    else
-                    {
-                        tagIds.Add(tag.Id);
-                    }
-                }
-
-                // Crear el material con los IDs obtenidos
+                // Crear el material
                 var createDTO = new MaterialCreateDTO
                 {
-                    Nombre = nombre,
+                    Nombre = datos.NombreMaterial,
                     AutorIds = autorIds,
-                    TagIds = tagIds
+                    TagIds = datos.TagIds
                 };
 
-                var materialId = await _materialesRepository.CreateMaterial(createDTO, fileUrl, tipoArchivo);
-
-                // Obtener el material creado
+                var materialId = await _materialesRepository.CreateMaterial(createDTO, fileName, tipoArchivo);
                 var material = await _materialesRepository.GetMaterialById(materialId);
 
                 return CreatedAtAction(nameof(GetMaterial), new { id = materialId }, material);
@@ -287,6 +282,32 @@ namespace MicroserviciosRepoEscom.Controllers
             {
                 _logger.LogError(ex, "Error al subir material");
                 return StatusCode(500, "Error interno del servidor");
+            }
+        }
+
+        private bool IsValidEmail(string email)
+        {
+            if(string.IsNullOrEmpty(email))
+                return false;
+
+            try
+            {
+                // Validar formato de email
+                var addr = new System.Net.Mail.MailAddress(email);
+                if(addr.Address != email)
+                    return false;
+
+                // Obtener el dominio del email
+                string dominio = email.Substring(email.IndexOf('@') + 1).ToLower();
+
+                // Validar que el dominio sea uno de los permitidos
+                string[] dominiosPermitidos = { "alumno.ipn.mx", "ipn.mx" };
+
+                return dominiosPermitidos.Contains(dominio);
+            }
+            catch
+            {
+                return false;
             }
         }
 
@@ -300,13 +321,13 @@ namespace MicroserviciosRepoEscom.Controllers
                 var existingMaterial = await _materialesRepository.GetMaterialById(id);
                 if(existingMaterial == null)
                 {
-                    return NotFound();
+                    return NotFound($"No se encontró el material con ID {id}");
                 }
 
-                // Verificar que los autores existan (si se proporcionaron)
-                if(materialDTO.AutorIds != null)
+                // Verificar que los autores existan si se proporcionaron
+                if(materialDTO.Autores != null)
                 {
-                    foreach(var autorId in materialDTO.AutorIds)
+                    foreach(var autorId in materialDTO.Autores)
                     {
                         var autor = await _autoresRepository.GetAutorById(autorId);
                         if(autor == null)
@@ -316,7 +337,7 @@ namespace MicroserviciosRepoEscom.Controllers
                     }
                 }
 
-                // Verificar que los tags existan (si se proporcionaron)
+                // Verificar que los tags existan si se proporcionaron
                 if(materialDTO.TagIds != null)
                 {
                     foreach(var tagId in materialDTO.TagIds)
@@ -329,11 +350,29 @@ namespace MicroserviciosRepoEscom.Controllers
                     }
                 }
 
-                var result = await _materialesRepository.UpdateMaterial(id, materialDTO);
+                // Ignorar valores por defecto o vacíos
+                var updateDTO = new MaterialUpdateDTO
+                {
+                    // Solo pasar el nombre si no es el valor por defecto ("string") y no está vacío
+                    Nombre = (materialDTO.Nombre != "string" && !string.IsNullOrEmpty(materialDTO.Nombre))
+                        ? materialDTO.Nombre : null,
 
+                    // Solo pasar la URL si no es el valor por defecto ("string") y no está vacía
+                    Url = (materialDTO.Url != "string" && !string.IsNullOrEmpty(materialDTO.Url))
+                        ? materialDTO.Url : null,
+
+                    // Pasar autores y tags tal cual (null o la lista proporcionada)
+                    Autores = materialDTO.Autores,
+                    TagIds = materialDTO.TagIds
+                };
+
+                // Actualizar el material
+                var result = await _materialesRepository.UpdateMaterial(id, updateDTO);
                 if(result)
                 {
-                    return NoContent();
+                    // Obtener el material actualizado
+                    var updatedMaterial = await _materialesRepository.GetMaterialById(id);
+                    return Ok(updatedMaterial);
                 }
                 else
                 {

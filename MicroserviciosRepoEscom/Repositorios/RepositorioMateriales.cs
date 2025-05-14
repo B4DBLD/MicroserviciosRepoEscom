@@ -203,7 +203,7 @@ namespace MicroserviciosRepoEscom.Repositorios
             catch(Exception ex)
             {
                 transaction.Rollback();
-                _logger.LogError(ex, "Error al crear el material");
+                _logger.LogError(ex.InnerException.ToString(), ex.StackTrace);
                 throw;
             }
         }
@@ -211,104 +211,120 @@ namespace MicroserviciosRepoEscom.Repositorios
         public async Task<bool> UpdateMaterial(int id, MaterialUpdateDTO material)
         {
             using var connection = new SqliteConnection(_dbConfig.ConnectionString);
-            await connection.OpenAsync();
+    await connection.OpenAsync();
 
-            // Iniciar transacción para garantizar la integridad
-            using var transaction = connection.BeginTransaction();
+    using var transaction = connection.BeginTransaction();
 
-            try
+    try
+    {
+        // Verificar que el material exista
+        bool materialExists;
+        using(var checkCommand = connection.CreateCommand())
+        {
+            checkCommand.Transaction = transaction;
+            checkCommand.CommandText = "SELECT COUNT(1) FROM Material WHERE id = @id";
+            checkCommand.Parameters.AddWithValue("@id", id);
+            
+            long count = (long)await checkCommand.ExecuteScalarAsync();
+            materialExists = count > 0;
+        }
+        
+        if(!materialExists)
+        {
+            transaction.Rollback();
+            return false;
+        }
+
+        // Actualizar datos básicos del material si se proporcionaron
+        if(!string.IsNullOrEmpty(material.Nombre) || !string.IsNullOrEmpty(material.Url))
+        {
+            using var command = connection.CreateCommand();
+            var sqlBuilder = new StringBuilder("UPDATE Material SET fechaActualizacion = datetime('now', 'utc')");
+
+            if(!string.IsNullOrEmpty(material.Nombre))
+                sqlBuilder.Append(", nombre = @nombre");
+
+            if(!string.IsNullOrEmpty(material.Url))
+                sqlBuilder.Append(", url = @url");
+
+            sqlBuilder.Append(" WHERE id = @id");
+
+            command.Transaction = transaction;
+            command.CommandText = sqlBuilder.ToString();
+            command.Parameters.AddWithValue("@id", id);
+
+            if(!string.IsNullOrEmpty(material.Nombre))
+                command.Parameters.AddWithValue("@nombre", material.Nombre);
+
+            if(!string.IsNullOrEmpty(material.Url))
+                command.Parameters.AddWithValue("@url", material.Url);
+
+            await command.ExecuteNonQueryAsync();
+        }
+
+        // Actualizar relaciones con autores si se proporcionaron
+        if(material.Autores != null)
+        {
+            // Eliminar relaciones existentes
+            using(var deleteCommand = connection.CreateCommand())
             {
-                // Actualizar el material
-                using(var command = connection.CreateCommand())
-                {
-                    var sqlBuilder = new StringBuilder("UPDATE Material SET fechaActualizacion = datetime('now', 'utc')");
-
-                    if(!string.IsNullOrEmpty(material.Nombre))
-                        sqlBuilder.Append(", nombre = @nombre");
-
-                    if(!string.IsNullOrEmpty(material.Url))
-                        sqlBuilder.Append(", url = @url");
-
-                    sqlBuilder.Append(" WHERE id = @id");
-
-                    command.Transaction = transaction;
-                    command.CommandText = sqlBuilder.ToString();
-                    command.Parameters.AddWithValue("@id", id);
-
-                    if(!string.IsNullOrEmpty(material.Nombre))
-                        command.Parameters.AddWithValue("@nombre", material.Nombre);
-
-                    if(!string.IsNullOrEmpty(material.Url))
-                        command.Parameters.AddWithValue("@url", material.Url);
-
-                    int rowsAffected = await command.ExecuteNonQueryAsync();
-                    if(rowsAffected == 0)
-                    {
-                        transaction.Rollback();
-                        return false;
-                    }
-                }
-
-                // Actualizar relaciones con autores si se proporcionaron
-                if(material.AutorIds != null && material.AutorIds.Count > 0)
-                {
-                    // Eliminar relaciones existentes
-                    using(var deleteCommand = connection.CreateCommand())
-                    {
-                        deleteCommand.Transaction = transaction;
-                        deleteCommand.CommandText = "DELETE FROM AutorMaterial WHERE materialId = @materialId";
-                        deleteCommand.Parameters.AddWithValue("@materialId", id);
-                        await deleteCommand.ExecuteNonQueryAsync();
-                    }
-
-                    // Agregar nuevas relaciones
-                    foreach(var autorId in material.AutorIds)
-                    {
-                        using var insertCommand = connection.CreateCommand();
-                        insertCommand.Transaction = transaction;
-                        insertCommand.CommandText = @"
-                            INSERT INTO AutorMaterial (autorId, materialId)
-                            VALUES (@autorId, @materialId)";
-                        insertCommand.Parameters.AddWithValue("@autorId", autorId);
-                        insertCommand.Parameters.AddWithValue("@materialId", id);
-                        await insertCommand.ExecuteNonQueryAsync();
-                    }
-                }
-
-                // Actualizar relaciones con tags si se proporcionaron
-                if(material.TagIds != null)
-                {
-                    // Eliminar relaciones existentes
-                    using(var deleteCommand = connection.CreateCommand())
-                    {
-                        deleteCommand.Transaction = transaction;
-                        deleteCommand.CommandText = "DELETE FROM MaterialTag WHERE materialId = @materialId";
-                        deleteCommand.Parameters.AddWithValue("@materialId", id);
-                        await deleteCommand.ExecuteNonQueryAsync();
-                    }
-
-                    // Agregar nuevas relaciones
-                    foreach(var tagId in material.TagIds)
-                    {
-                        using var insertCommand = connection.CreateCommand();
-                        insertCommand.Transaction = transaction;
-                        insertCommand.CommandText = @"
-                            INSERT INTO MaterialTag (tagId, materialId)
-                            VALUES (@tagId, @materialId)";
-                        insertCommand.Parameters.AddWithValue("@tagId", tagId);
-                        insertCommand.Parameters.AddWithValue("@materialId", id);
-                        await insertCommand.ExecuteNonQueryAsync();
-                    }
-                }
-
-                transaction.Commit();
-                return true;
+                deleteCommand.Transaction = transaction;
+                deleteCommand.CommandText = "DELETE FROM AutorMaterial WHERE materialId = @materialId";
+                deleteCommand.Parameters.AddWithValue("@materialId", id);
+                await deleteCommand.ExecuteNonQueryAsync();
             }
-            catch
+
+            // Agregar nuevas relaciones
+            foreach(var autorId in material.Autores)
             {
-                transaction.Rollback();
-                throw;
+                using var insertCommand = connection.CreateCommand();
+                insertCommand.Transaction = transaction;
+                insertCommand.CommandText = @"
+                    INSERT INTO AutorMaterial (autorId, materialId)
+                    VALUES (@autorId, @materialId)";
+                insertCommand.Parameters.AddWithValue("@autorId", autorId);
+                insertCommand.Parameters.AddWithValue("@materialId", id);
+                
+                await insertCommand.ExecuteNonQueryAsync();
             }
+        }
+
+        // Actualizar relaciones con tags si se proporcionaron
+        if(material.TagIds != null)
+        {
+            // Eliminar relaciones existentes
+            using(var deleteCommand = connection.CreateCommand())
+            {
+                deleteCommand.Transaction = transaction;
+                deleteCommand.CommandText = "DELETE FROM MaterialTag WHERE materialId = @materialId";
+                deleteCommand.Parameters.AddWithValue("@materialId", id);
+                await deleteCommand.ExecuteNonQueryAsync();
+            }
+
+            // Agregar nuevas relaciones
+            foreach(var tagId in material.TagIds)
+            {
+                using var insertCommand = connection.CreateCommand();
+                insertCommand.Transaction = transaction;
+                insertCommand.CommandText = @"
+                    INSERT INTO MaterialTag (tagId, materialId)
+                    VALUES (@tagId, @materialId)";
+                insertCommand.Parameters.AddWithValue("@tagId", tagId);
+                insertCommand.Parameters.AddWithValue("@materialId", id);
+                
+                await insertCommand.ExecuteNonQueryAsync();
+            }
+        }
+
+        transaction.Commit();
+        return true;
+    }
+    catch(Exception ex)
+    {
+        _logger.LogError(ex, $"Error al actualizar el material con ID {id}");
+        transaction.Rollback();
+        throw;
+    }
         }
 
         public async Task<bool> DeleteMaterial(int id)
@@ -543,12 +559,34 @@ namespace MicroserviciosRepoEscom.Repositorios
             using var connection = new SqliteConnection(_dbConfig.ConnectionString);
             await connection.OpenAsync();
 
+            // Convertir tags a enteros al inicio para simplificar la lógica posterior
+            List<int> tagIds = new List<int>();
+            if(busqueda.Tags != null && busqueda.Tags.Count > 0)
+            {
+                foreach(var tag in busqueda.Tags)
+                {
+                    try
+                    {
+                        int tagId = Convert.ToInt32(tag);
+                        tagIds.Add(tagId);
+                    }
+                    catch(FormatException)
+                    {
+                        _logger.LogWarning($"Se ignoró el tag {tag} por no ser un ID válido");
+                    }
+                    catch(OverflowException)
+                    {
+                        _logger.LogWarning($"Se ignoró el tag {tag} por ser un número demasiado grande");
+                    }
+                }
+            }
+
             // Construir consulta SQL con condiciones dinámicas
             var sqlBuilder = new StringBuilder();
             sqlBuilder.AppendLine("SELECT DISTINCT m.id FROM Material m");
 
             bool hasAutorFilter = !string.IsNullOrEmpty(busqueda.AutorNombre);
-            bool hasTagFilter = busqueda.Tags != null && busqueda.Tags.Count > 0;
+            bool hasTagFilter = tagIds.Count > 0;
             bool hasNombreFilter = !string.IsNullOrEmpty(busqueda.MaterialNombre);
 
             // Agregar joins necesarios según filtros
@@ -561,7 +599,6 @@ namespace MicroserviciosRepoEscom.Repositorios
             if(hasTagFilter)
             {
                 sqlBuilder.AppendLine("JOIN MaterialTag mt ON m.id = mt.materialId");
-                sqlBuilder.AppendLine("JOIN Tag t ON mt.tagId = t.id");
             }
 
             // Construir la parte WHERE de la consulta
@@ -591,9 +628,9 @@ namespace MicroserviciosRepoEscom.Repositorios
             if(hasTagFilter)
             {
                 List<string> tagConditions = new List<string>();
-                for(int i = 0; i < busqueda.Tags.Count; i++)
+                for(int i = 0; i < tagIds.Count; i++)
                 {
-                    tagConditions.Add($"t.name LIKE @tag{i}");
+                    tagConditions.Add($"mt.tagId = @tagId{i}");
                 }
                 whereConditions.Add($"({string.Join(" OR ", tagConditions)})");
             }
@@ -603,6 +640,9 @@ namespace MicroserviciosRepoEscom.Repositorios
             {
                 sqlBuilder.AppendLine($"WHERE {string.Join(" AND ", whereConditions)}");
             }
+
+            // Log de la consulta para depuración
+            _logger.LogInformation($"SQL Query: {sqlBuilder}");
 
             using var command = connection.CreateCommand();
             command.CommandText = sqlBuilder.ToString();
@@ -629,9 +669,9 @@ namespace MicroserviciosRepoEscom.Repositorios
 
             if(hasTagFilter)
             {
-                for(int i = 0; i < busqueda.Tags.Count; i++)
+                for(int i = 0; i < tagIds.Count; i++)
                 {
-                    command.Parameters.AddWithValue($"@tag{i}", $"%{busqueda.Tags[i]}%");
+                    command.Parameters.AddWithValue($"@tagId{i}", tagIds[i]);
                 }
             }
 
@@ -644,6 +684,9 @@ namespace MicroserviciosRepoEscom.Repositorios
                     materialIds.Add(reader.GetInt32(0));
                 }
             }
+
+            // Log de resultados para depuración
+            _logger.LogInformation($"Materiales encontrados: {materialIds.Count}");
 
             // Obtener detalles completos de cada material
             var materiales = new List<MaterialConRelacionesDTO>();

@@ -8,6 +8,7 @@
         public string TipoArchivo { get; set; } = string.Empty;
         public string FechaCreacion { get; set; } = string.Empty;
         public string FechaActualizacion { get; set; } = string.Empty;
+        public byte[]? ContenidoPDF { get; set; }
         public List<Autor> Autores { get; set; } = new List<Autor>();
         public List<Tag> Tags { get; set; } = new List<Tag>();
     }

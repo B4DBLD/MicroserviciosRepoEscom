@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace MicroserviciosRepoEscom.Controllers
 {
-    [Route("api/[controller]")]
+    [Route("repositorio/[controller]")]
     [ApiController]
     public class AutoresController : ControllerBase
     {
