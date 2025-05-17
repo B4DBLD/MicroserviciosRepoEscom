@@ -10,7 +10,7 @@ SQLitePCL.Batteries.Init();
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Configurar límites globales para todos los servidores
+// 1. Configurar lï¿½mites globales para todos los servidores
 const long MaxFileSize = 1073741824; // 1GB en bytes
 
 // 2. Configurar Kestrel (servidor web integrado)
@@ -30,12 +30,12 @@ builder.Services.Configure<IISServerOptions>(options =>
 // 4. Configurar opciones de formularios para subida de archivos
 builder.Services.Configure<FormOptions>(options =>
 {
-    options.ValueLengthLimit = int.MaxValue; // Límite de longitud para valores de formulario
-    options.MultipartBodyLengthLimit = MaxFileSize; // Límite de tamaño para cuerpos multipart
-    options.MultipartHeadersLengthLimit = int.MaxValue; // Límite para encabezados multipart
+    options.ValueLengthLimit = int.MaxValue; // Lï¿½mite de longitud para valores de formulario
+    options.MultipartBodyLengthLimit = MaxFileSize; // Lï¿½mite de tamaï¿½o para cuerpos multipart
+    options.MultipartHeadersLengthLimit = int.MaxValue; // Lï¿½mite para encabezados multipart
 });
 
-// 5. Configurar límites de streaming de formularios (si es aplicable)
+// 5. Configurar lï¿½mites de streaming de formularios (si es aplicable)
 builder.WebHost.ConfigureKestrel(serverOptions =>
 {
     serverOptions.Limits.MaxRequestBodySize = MaxFileSize;
@@ -47,14 +47,14 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Configuración de la base de datos
+// Configuraciï¿½n de la base de datos
 var dbConfig = new DBConfig
 {
     ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection")
 };
 builder.Services.AddSingleton(dbConfig);
 
-// Registrar servicios de la aplicación
+// Registrar servicios de la aplicaciï¿½n
 builder.Services.AddScoped<InterfazRepositorioAutores, RepositorioAutores>();
 builder.Services.AddScoped<InterfazRepositorioMateriales, RepositorioMateriales>();
 builder.Services.AddScoped<InterfazRepositorioTags, RepositorioTags>();
@@ -75,6 +75,7 @@ var app = builder.Build();
 
 // Configure the HTTP request pipeline.
 
+
 app.Urls.Add("http://10.0.0.4:8081");
 app.UseSwagger();
 app.UseSwaggerUI();
@@ -82,12 +83,14 @@ app.UseSwaggerUI();
 
 app.Use(async (context, next) =>
 {
-    // Otra opción es establecer el límite dinámicamente por solicitud
+    // Otra opciï¿½n es establecer el lï¿½mite dinï¿½micamente por solicitud
     context.Features.Get<IHttpMaxRequestBodySizeFeature>().MaxRequestBodySize = MaxFileSize;
     await next.Invoke();
 });
 
 app.UseHttpsRedirection();
+
+app.UseCors("AllowAll");
 
 app.UseAuthorization();
 
