@@ -14,7 +14,5 @@ namespace MicroserviciosRepoEscom.Models
         public string TipoArchivo { get; set; } = string.Empty;
 
         public string? Url { get; set; } // Para archivos ZIP
-
-        public byte[]? ContenidoPDF { get; set; } // Para archivos PDF
     }
 }

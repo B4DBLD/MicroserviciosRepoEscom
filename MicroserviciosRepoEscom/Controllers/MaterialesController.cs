@@ -56,7 +56,7 @@ namespace MicroserviciosRepoEscom.Controllers
 
         // GET: api/Materiales/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<MaterialConRelacionesDTO>> GetMaterial(int id)
+        public async Task<ActionResult<MaterialConRelacionesDTO>> GetMaterialStream(int id)
         {
             try
             {
@@ -113,6 +113,32 @@ namespace MicroserviciosRepoEscom.Controllers
                 }
             }
             catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Error al obtener el material con ID {id}");
+                return StatusCode(500, "Error interno del servidor");
+            }
+        }
+
+        [HttpGet("{id}/Detalles")]
+        public async Task<ActionResult<MaterialConRelacionesDTO>> GetMaterial(int id)
+        {
+            try
+            {
+                var material = await _materialesRepository.GetMaterialById(id);
+
+                if (material == null)
+                {
+                    return NotFound($"No se encontró el material");
+                }
+
+                else
+                {
+                    // Para ZIP u otros tipos, simplemente devolver el material tal cual
+                    // Ya incluye rutaAcceso con la URL del servicio Docker
+                    return Ok(material);
+                }
+            }
+            catch (Exception ex)
             {
                 _logger.LogError(ex, $"Error al obtener el material con ID {id}");
                 return StatusCode(500, "Error interno del servidor");

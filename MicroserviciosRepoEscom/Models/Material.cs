@@ -12,8 +12,6 @@ namespace MicroserviciosRepoEscom.Models
         [Required(ErrorMessage = "La URL es requerida")]
         public string Url { get; set; } = string.Empty;
 
-        public byte[]? ContenidoPDF { get; set; }
-
         // Nuevo campo para determinar el tipo de archivo (PDF o ZIP)
         public string TipoArchivo { get; set; } = string.Empty;
 
