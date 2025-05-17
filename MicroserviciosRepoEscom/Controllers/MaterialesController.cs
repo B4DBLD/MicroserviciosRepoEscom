@@ -60,12 +60,16 @@ namespace MicroserviciosRepoEscom.Controllers
         {
             try
             {
-                byte[] fileContent;
                 var material = await _materialesRepository.GetMaterialById(id);
 
                 if(material == null)
                 {
-                    return NotFound();
+                    return NotFound($"No se encontró el material");
+                }
+
+                if (!System.IO.File.Exists(material.Url))
+                {
+                    return BadRequest("El archivo no fue encontrado");
                 }
 
                 if(material.TipoArchivo == "PDF")
@@ -73,12 +77,28 @@ namespace MicroserviciosRepoEscom.Controllers
                     // Para PDF, leer el archivo y devolver el blob
                     try
                     {
-                        var fileData = await _fileService.GetFile(material.Url);
+                        Response.Headers.Add("Content-Disposition", $"inline; filename=\"{material.Nombre}.pdf\"");
 
-                        // Crear un objeto anónimo con todas las propiedades originales más el blob
-                        material.Url = Convert.ToBase64String(fileData);
+                        // Habilita el cacheo para mejorar el rendimiento
+                        Response.Headers.Add("Cache-Control", "public, max-age=3600");
 
-                        return Ok(material);
+                        // Permite la carga por partes
+                        Response.Headers.Add("Accept-Ranges", "bytes");
+
+                        // Streaming del archivo desde disco
+                        var fileStream = new FileStream(
+                            material.Url,
+                            FileMode.Open,
+                            FileAccess.Read,
+                            FileShare.Read,
+                            bufferSize: 4096,
+                            useAsync: true
+                        );
+
+                        return new FileStreamResult(fileStream, "application/pdf")
+                        {
+                            EnableRangeProcessing = true // Habilita el soporte para solicitudes parciales
+                        };
                     }
                     catch(FileNotFoundException)
                     {
