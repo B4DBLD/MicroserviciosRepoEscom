@@ -4,8 +4,8 @@ namespace MicroserviciosRepoEscom.Repositorios
 {
     public interface InterfazRepositorioMateriales
     {
-            Task<IEnumerable<Material>> GetAllMateriales();
-            Task<MaterialConRelacionesDTO?> GetMaterialById(int id);
+            Task<IEnumerable<Material>> GetAllMateriales(int? userRol = null);
+            Task<MaterialConRelacionesDTO?> GetMaterialById(int id, int? userRol = null);
             Task<int> CreateMaterial(MaterialCreateDTO material, string? fileUrl = null, string? tipoArchivo = null);
             Task<bool> UpdateMaterial(int id, MaterialUpdateDTO  material);
             Task<bool> DeleteMaterial(int id);
@@ -13,5 +13,6 @@ namespace MicroserviciosRepoEscom.Repositorios
             Task<IEnumerable<MaterialConRelacionesDTO>> GetMaterialesByTagId(int tagId);
             Task<IEnumerable<MaterialConRelacionesDTO>> SearchMateriales(string? autorNombre, List<string>? tags);
             Task<IEnumerable<MaterialConRelacionesDTO>> SearchMaterialesAvanzado(BusquedaDTO busqueda);
+            Task<int?> GetUserRol(int? id = null);
     }
 }

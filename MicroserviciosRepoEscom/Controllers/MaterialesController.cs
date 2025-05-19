@@ -21,6 +21,7 @@ namespace MicroserviciosRepoEscom.Controllers
         private readonly InterfazRepositorioAutores _autoresRepository;
         private readonly InterfazRepositorioTags _tagsRepository;
         private readonly IFileService _fileService;
+        private readonly IEmailService _emailService;
         private readonly string _uploadsFolder;
         private readonly ILogger<MaterialesController> _logger;
 
@@ -29,23 +30,33 @@ namespace MicroserviciosRepoEscom.Controllers
             InterfazRepositorioAutores autoresRepository,
             InterfazRepositorioTags tagsRepository,
             IFileService fileService,
+            IEmailService emailService,
             ILogger<MaterialesController> logger)
         {
             _materialesRepository = materialesRepository;
             _autoresRepository = autoresRepository;
             _tagsRepository = tagsRepository;
             _fileService = fileService;
+            _emailService = emailService;
             _logger = logger;
         }
 
         // GET: api/Materiales
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Material>>> GetMateriales()
+        public async Task<ActionResult<IEnumerable<Material>>> GetMateriales([FromQuery] int? userId = null)
         {
             try
             {
-                var materiales = await _materialesRepository.GetAllMateriales();
-                return Ok(materiales);
+                if(userId != null)
+                {
+                    int? userRol = await _materialesRepository.GetUserRol(userId);
+                    var materiales = await _materialesRepository.GetAllMateriales(userRol);
+                    return Ok(materiales);
+                }
+                else
+                {
+                    return BadRequest("El ID de usuario no puede ser nulo");
+                }
             }
             catch(Exception ex)
             {
@@ -56,60 +67,67 @@ namespace MicroserviciosRepoEscom.Controllers
 
         // GET: api/Materiales/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<MaterialConRelacionesDTO>> GetMaterialStream(int id)
+        public async Task<ActionResult<MaterialConRelacionesDTO>> GetMaterialStream(int id, int? userId = null)
         {
             try
             {
-                var material = await _materialesRepository.GetMaterialById(id);
-
-                if(material == null)
+                if(userId != null)
                 {
-                    return NotFound($"No se encontró el material");
-                }
+                    int? userRol = await _materialesRepository.GetUserRol(userId);
+                    var material = await _materialesRepository.GetMaterialById(id, userRol);
 
-                if (!System.IO.File.Exists(material.Url))
-                {
-                    return BadRequest("El archivo no fue encontrado");
-                }
-
-                if(material.TipoArchivo == "PDF")
-                {
-                    // Para PDF, leer el archivo y devolver el blob
-                    try
+                    if(material == null)
                     {
-                        Response.Headers.Add("Content-Disposition", $"inline; filename=\"{material.Nombre}.pdf\"");
-
-                        // Habilita el cacheo para mejorar el rendimiento
-                        Response.Headers.Add("Cache-Control", "public, max-age=3600");
-
-                        // Permite la carga por partes
-                        Response.Headers.Add("Accept-Ranges", "bytes");
-
-                        // Streaming del archivo desde disco
-                        var fileStream = new FileStream(
-                            material.Url,
-                            FileMode.Open,
-                            FileAccess.Read,
-                            FileShare.Read,
-                            bufferSize: 4096,
-                            useAsync: true
-                        );
-
-                        return new FileStreamResult(fileStream, "application/pdf")
-                        {
-                            EnableRangeProcessing = true // Habilita el soporte para solicitudes parciales
-                        };
+                        return NotFound($"No se encontró el material");
                     }
-                    catch(FileNotFoundException)
+
+                    if(!System.IO.File.Exists(material.Url))
                     {
-                        return BadRequest("El archivo PDF no está disponible");
+                        return BadRequest("El archivo no fue encontrado");
+                    }
+
+                    if(material.TipoArchivo == "PDF")
+                    {
+                        try
+                        {
+                            Response.Headers.Add("Content-Disposition", $"inline; filename=\"{material.Nombre}.pdf\"");
+
+                            // Habilita el cacheo para mejorar el rendimiento
+                            Response.Headers.Add("Cache-Control", "public, max-age=3600");
+
+                            // Permite la carga por partes
+                            Response.Headers.Add("Accept-Ranges", "bytes");
+
+                            // Streaming del archivo desde disco
+                            var fileStream = new FileStream(
+                                material.Url,
+                                FileMode.Open,
+                                FileAccess.Read,
+                                FileShare.Read,
+                                bufferSize: 4096,
+                                useAsync: true
+                            );
+
+                            return new FileStreamResult(fileStream, "application/pdf")
+                            {
+                                EnableRangeProcessing = true // Habilita el soporte para solicitudes parciales
+                            };
+                        }
+                        catch(FileNotFoundException)
+                        {
+                            return BadRequest("El archivo PDF no está disponible");
+                        }
+                    }
+                    else
+                    {
+                        // Para ZIP u otros tipos, simplemente devolver el material tal cual
+                        // Ya incluye rutaAcceso con la URL del servicio Docker
+                        return Ok(material);
                     }
                 }
                 else
                 {
-                    // Para ZIP u otros tipos, simplemente devolver el material tal cual
-                    // Ya incluye rutaAcceso con la URL del servicio Docker
-                    return Ok(material);
+                    return BadRequest("El ID de usuario no puede ser nulo");
                 }
             }
             catch(Exception ex)
@@ -120,22 +138,29 @@ namespace MicroserviciosRepoEscom.Controllers
         }
 
         [HttpGet("{id}/Detalles")]
-        public async Task<ActionResult<MaterialConRelacionesDTO>> GetMaterial(int id)
+        public async Task<ActionResult<MaterialConRelacionesDTO>> GetMaterial(int id, int? userId = null)
         {
             try
             {
-                var material = await _materialesRepository.GetMaterialById(id);
-
-                if (material == null)
+                if(userId != null)
                 {
-                    return NotFound($"No se encontró el material");
-                }
+                    int? userRol = await _materialesRepository.GetUserRol(userId);
+                    var material = await _materialesRepository.GetMaterialById(id, userRol);
 
-                else
+                    if(material == null)
+                    {
+                        return NotFound($"No se encontró el material");
+                    }
+
+                    else
+                    {
+                        // Para ZIP u otros tipos, simplemente devolver el material tal cual
+                        // Ya incluye rutaAcceso con la URL del servicio Docker
+                        return Ok(material);
+                    }
+                }else
                 {
-                    // Para ZIP u otros tipos, simplemente devolver el material tal cual
-                    // Ya incluye rutaAcceso con la URL del servicio Docker
-                    return Ok(material);
+                    return BadRequest("El ID de usuario no puede ser nulo");
                 }
             }
             catch (Exception ex)
@@ -322,6 +347,30 @@ namespace MicroserviciosRepoEscom.Controllers
                 var materialId = await _materialesRepository.CreateMaterial(createDTO, fileName, tipoArchivo);
                 var material = await _materialesRepository.GetMaterialById(materialId);
 
+                if(tipoArchivo == "ZIP")
+                {
+                    try
+                    {
+                        string autorNombre = "Sin autor especificado";
+
+                        if(datos.Autores != null && datos.Autores.Count > 0)
+                        {
+                            var nombresAutores = datos.Autores.Select(autor =>
+                                $"{autor.Nombre} {autor.Apellido}".Trim()
+                            ).ToList();
+
+                            autorNombre = string.Join(", ", nombresAutores);
+                        }
+                        await _emailService.SendEmailAsync(datos.NombreMaterial, autorNombre);
+                        _logger.LogInformation($"Notificación enviada para material ZIP ");
+                    }
+                    catch(Exception ex)
+                    {
+                        _logger.LogError(ex, $"Error al enviar notificación ZIP");
+                        // No afecta la subida del archivo
+                    }
+                }
+
                 return CreatedAtAction(nameof(GetMaterial), new { id = materialId }, material);
             }
             catch(Exception ex)
@@ -330,6 +379,9 @@ namespace MicroserviciosRepoEscom.Controllers
                 return StatusCode(500, "Error interno del servidor");
             }
         }
+
+        
+
 
         private bool IsValidEmail(string email)
         {

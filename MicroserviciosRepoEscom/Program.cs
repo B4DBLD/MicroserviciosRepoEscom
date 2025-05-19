@@ -1,4 +1,5 @@
 using MicroserviciosRepoEscom.Conexion;
+using MicroserviciosRepoEscom.Models;
 using MicroserviciosRepoEscom.Repositorios;
 using MicroserviciosRepoEscom.Servicios;
 using Microsoft.AspNetCore.Http.Features;
@@ -58,7 +59,12 @@ builder.Services.AddSingleton(dbConfig);
 builder.Services.AddScoped<InterfazRepositorioAutores, RepositorioAutores>();
 builder.Services.AddScoped<InterfazRepositorioMateriales, RepositorioMateriales>();
 builder.Services.AddScoped<InterfazRepositorioTags, RepositorioTags>();
+builder.Services.AddScoped<InterfazRepositorioFavoritos, RepositorioFavoritos>();
+builder.Services.AddScoped<InterfazRepositorioAdmin, RepositorioAdmin>();
 builder.Services.AddScoped<IFileService, FileService>();
+builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
+builder.Services.AddHttpClient("ResendApi");
+builder.Services.AddScoped<IEmailService, EmailService>();
 
 // Add services to the container.
 

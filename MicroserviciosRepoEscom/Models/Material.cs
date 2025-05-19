@@ -17,5 +17,6 @@ namespace MicroserviciosRepoEscom.Models
 
         public string FechaCreacion { get; set; } = string.Empty;
         public string FechaActualizacion { get; set; } = string.Empty;
+        public int Disponible { get; set; } = 0; // 0 = deshabilitado, 1 = habilitado
     }
 }
