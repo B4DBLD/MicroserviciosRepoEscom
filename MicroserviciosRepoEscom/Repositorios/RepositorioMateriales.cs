@@ -570,27 +570,28 @@ namespace MicroserviciosRepoEscom.Repositorios
             return materiales;
         }
 
-        public async Task<IEnumerable<MaterialConRelacionesDTO>> SearchMaterialesAvanzado(BusquedaDTO busqueda)
+        public async Task<IEnumerable<MaterialConRelacionesDTO>> SearchMaterialesAvanzado(BusquedaDTO busqueda, int? userRol = null)
         {
             using var connection = new SqliteConnection(_dbConfig.ConnectionString);
             await connection.OpenAsync();
 
-            // Convertir tags a enteros al inicio para simplificar la lógica posterior
+
+            // Convertir tags a enteros al inicio
             List<int> tagIds = new List<int>();
-            if(busqueda.Tags != null && busqueda.Tags.Count > 0)
+            if (busqueda.Tags != null && busqueda.Tags.Count > 0)
             {
-                foreach(var tag in busqueda.Tags)
+                foreach (var tag in busqueda.Tags)
                 {
                     try
                     {
                         int tagId = Convert.ToInt32(tag);
                         tagIds.Add(tagId);
                     }
-                    catch(FormatException)
+                    catch (FormatException)
                     {
                         _logger.LogWarning($"Se ignoró el tag {tag} por no ser un ID válido");
                     }
-                    catch(OverflowException)
+                    catch (OverflowException)
                     {
                         _logger.LogWarning($"Se ignoró el tag {tag} por ser un número demasiado grande");
                     }
@@ -600,60 +601,66 @@ namespace MicroserviciosRepoEscom.Repositorios
             // Construir consulta SQL con condiciones dinámicas
             var sqlBuilder = new StringBuilder();
             sqlBuilder.AppendLine("SELECT DISTINCT m.id FROM Material m");
-            sqlBuilder.AppendLine("WHERE m.disponible = 1");
 
             bool hasAutorFilter = !string.IsNullOrEmpty(busqueda.AutorNombre);
             bool hasTagFilter = tagIds.Count > 0;
             bool hasNombreFilter = !string.IsNullOrEmpty(busqueda.MaterialNombre);
 
             // Agregar joins necesarios según filtros
-            if(hasAutorFilter)
+            if (hasAutorFilter)
             {
                 sqlBuilder.AppendLine("JOIN AutorMaterial am ON m.id = am.materialId");
                 sqlBuilder.AppendLine("JOIN Autor a ON am.autorId = a.id");
             }
 
-            if(hasTagFilter)
+            if (hasTagFilter)
             {
                 sqlBuilder.AppendLine("JOIN MaterialTag mt ON m.id = mt.materialId");
             }
 
-            // Construir la parte WHERE de la consulta
+            // Construir UNA SOLA cláusula WHERE
             List<string> whereConditions = new List<string>();
 
-            if(hasNombreFilter)
+            // 1. Condición por rol basado en userId enviado
+            if (userRol != 3) // Si no es admin, solo ver disponibles
+            {
+                whereConditions.Add("m.disponible = 1");
+            }
+            // Si es admin (rol = 3), ve todos los materiales
+
+            // 2. Condición por nombre de material
+            if (hasNombreFilter)
             {
                 whereConditions.Add("m.nombre LIKE @nombre");
             }
 
-            if(hasAutorFilter)
+            // 3. Condición por autor
+            if (hasAutorFilter)
             {
-                // Dividir el nombre del autor para buscar
                 string[] autorTerms = busqueda.AutorNombre.Split(' ', 2);
-                if(autorTerms.Length >= 2)
+                if (autorTerms.Length >= 2)
                 {
-                    // Buscar por nombre Y apellido
                     whereConditions.Add("(a.nombre LIKE @autorNombre AND a.apellido LIKE @autorApellido)");
                 }
                 else
                 {
-                    // Buscar por nombre O apellido
                     whereConditions.Add("(a.nombre LIKE @autorTermino OR a.apellido LIKE @autorTermino)");
                 }
             }
 
-            if(hasTagFilter)
+            // 4. Condición por tags
+            if (hasTagFilter)
             {
                 List<string> tagConditions = new List<string>();
-                for(int i = 0; i < tagIds.Count; i++)
+                for (int i = 0; i < tagIds.Count; i++)
                 {
                     tagConditions.Add($"mt.tagId = @tagId{i}");
                 }
                 whereConditions.Add($"({string.Join(" OR ", tagConditions)})");
             }
 
-            // Agregar condiciones WHERE si hay alguna
-            if(whereConditions.Count > 0)
+            // Agregar cláusula WHERE si hay condiciones
+            if (whereConditions.Count > 0)
             {
                 sqlBuilder.AppendLine($"WHERE {string.Join(" AND ", whereConditions)}");
             }
@@ -665,15 +672,15 @@ namespace MicroserviciosRepoEscom.Repositorios
             command.CommandText = sqlBuilder.ToString();
 
             // Agregar parámetros
-            if(hasNombreFilter)
+            if (hasNombreFilter)
             {
                 command.Parameters.AddWithValue("@nombre", $"%{busqueda.MaterialNombre}%");
             }
 
-            if(hasAutorFilter)
+            if (hasAutorFilter)
             {
                 string[] autorTerms = busqueda.AutorNombre.Split(' ', 2);
-                if(autorTerms.Length >= 2)
+                if (autorTerms.Length >= 2)
                 {
                     command.Parameters.AddWithValue("@autorNombre", $"%{autorTerms[0]}%");
                     command.Parameters.AddWithValue("@autorApellido", $"%{autorTerms[1]}%");
@@ -684,9 +691,9 @@ namespace MicroserviciosRepoEscom.Repositorios
                 }
             }
 
-            if(hasTagFilter)
+            if (hasTagFilter)
             {
-                for(int i = 0; i < tagIds.Count; i++)
+                for (int i = 0; i < tagIds.Count; i++)
                 {
                     command.Parameters.AddWithValue($"@tagId{i}", tagIds[i]);
                 }
@@ -694,9 +701,9 @@ namespace MicroserviciosRepoEscom.Repositorios
 
             // Ejecutar consulta y obtener resultados
             var materialIds = new List<int>();
-            using(var reader = await command.ExecuteReaderAsync())
+            using (var reader = await command.ExecuteReaderAsync())
             {
-                while(await reader.ReadAsync())
+                while (await reader.ReadAsync())
                 {
                     materialIds.Add(reader.GetInt32(0));
                 }
@@ -707,10 +714,10 @@ namespace MicroserviciosRepoEscom.Repositorios
 
             // Obtener detalles completos de cada material
             var materiales = new List<MaterialConRelacionesDTO>();
-            foreach(var materialId in materialIds)
+            foreach (var materialId in materialIds)
             {
-                var material = await GetMaterialById(materialId);
-                if(material != null)
+                var material = await GetMaterialById(materialId, userRol);
+                if (material != null)
                 {
                     materiales.Add(material);
                 }

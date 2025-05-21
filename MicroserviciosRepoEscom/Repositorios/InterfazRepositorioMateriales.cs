@@ -12,7 +12,7 @@ namespace MicroserviciosRepoEscom.Repositorios
             Task<IEnumerable<MaterialConRelacionesDTO>> GetMaterialesByAutorId(int autorId);
             Task<IEnumerable<MaterialConRelacionesDTO>> GetMaterialesByTagId(int tagId);
             Task<IEnumerable<MaterialConRelacionesDTO>> SearchMateriales(string? autorNombre, List<string>? tags);
-            Task<IEnumerable<MaterialConRelacionesDTO>> SearchMaterialesAvanzado(BusquedaDTO busqueda);
+            Task<IEnumerable<MaterialConRelacionesDTO>> SearchMaterialesAvanzado(BusquedaDTO busqueda, int? userRol = null);
             Task<int?> GetUserRol(int? id = null);
     }
 }

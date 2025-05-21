@@ -218,24 +218,34 @@ namespace MicroserviciosRepoEscom.Controllers
 
         // GET: api/Materiales/Search?autorNombre=nombre&tags=tag1&tags=tag2
         [HttpGet("Search")]
-        public async Task<ActionResult<IEnumerable<MaterialConRelacionesDTO>>> SearchMateriales([FromQuery] string? materialNombre, [FromQuery] string? autorNombre, [FromQuery] List<int>? tags)
+        public async Task<ActionResult<IEnumerable<MaterialConRelacionesDTO>>> SearchMateriales([FromQuery] string? materialNombre, [FromQuery] string? autorNombre, [FromQuery] List<int>? tags, int? userId = null)
         {
+            if (userId != null)
+            {
 
-            try
-            {
-                var busqueda = new BusquedaDTO
+
+                try
                 {
-                    MaterialNombre = materialNombre,
-                    AutorNombre = autorNombre,
-                    Tags = tags
-                };
-                var materiales = await _materialesRepository.SearchMaterialesAvanzado(busqueda);
-                return Ok(materiales);
+
+                    var busqueda = new BusquedaDTO
+                    {
+                        MaterialNombre = materialNombre,
+                        AutorNombre = autorNombre,
+                        Tags = tags
+                    };
+                    int? userRol = await _materialesRepository.GetUserRol(userId);
+                    var materiales = await _materialesRepository.SearchMaterialesAvanzado(busqueda, userRol);
+                    return Ok(materiales);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error al buscar materiales");
+                    return StatusCode(500, "Error interno del servidor");
+                }
             }
-            catch(Exception ex)
+            else
             {
-                _logger.LogError(ex, "Error al buscar materiales");
-                return StatusCode(500, "Error interno del servidor");
+                return BadRequest("El ID de usuario no puede ser nulo");
             }
         }
 
@@ -490,8 +500,9 @@ namespace MicroserviciosRepoEscom.Controllers
         {
             try
             {
+
                 // Verificar que el material exista
-                var existingMaterial = await _materialesRepository.GetMaterialById(id);
+                var existingMaterial = await _materialesRepository.GetMaterialById(id, 3);
                 if(existingMaterial == null)
                 {
                     return NotFound();
