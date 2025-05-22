@@ -24,12 +24,12 @@ namespace MicroserviciosRepoEscom.Controllers
             try
             {
                 var autores = await _autoresRepository.GetAllAutores();
-                return Ok(autores);
+                return Ok(ApiResponse<IEnumerable<Autor>>.Success(autores));
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, "Error al obtener todos los autores");
-                return StatusCode(500, "Error interno del servidor");
+                return StatusCode(500, ApiResponse.Failure("Error interno del servidor.", new List<string> { ex.Message }));
             }
         }
 
@@ -46,12 +46,12 @@ namespace MicroserviciosRepoEscom.Controllers
                     return NotFound();
                 }
 
-                return Ok(autor);
+                return Ok(ApiResponse<Autor>.Success(autor));
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Error al obtener el autor con ID {id}");
-                return StatusCode(500, "Error interno del servidor");
+                return StatusCode(500, ApiResponse.Failure("Error interno del servidor.", new List<string> { ex.Message }));
             }
         }
 
@@ -65,7 +65,7 @@ namespace MicroserviciosRepoEscom.Controllers
                 var existingAutor = await _autoresRepository.GetAutorByEmail(autorDTO.Email);
                 if(existingAutor != null)
                 {
-                    return Conflict("Ya existe un autor con este email");
+                    return Conflict(ApiResponse.Failure("Ya existe un autor con este email"));
                 }
 
                 var autor = new Autor
@@ -78,12 +78,12 @@ namespace MicroserviciosRepoEscom.Controllers
                 var id = await _autoresRepository.CreateAutor(autor);
                 autor.Id = id;
 
-                return CreatedAtAction(nameof(GetAutor), new { id = autor.Id }, autor);
+                return CreatedAtAction(nameof(GetAutor), new { id = autor.Id }, ApiResponse<Autor>.Success(autor));
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, "Error al crear autor");
-                return StatusCode(500, "Error interno del servidor");
+                return StatusCode(500, ApiResponse.Failure("Error interno del servidor.", new List<string> { ex.Message }));
             }
         }
 
@@ -97,7 +97,7 @@ namespace MicroserviciosRepoEscom.Controllers
                 var existingAutor = await _autoresRepository.GetAutorById(id);
                 if(existingAutor == null)
                 {
-                    return NotFound();
+                    return NotFound(ApiResponse.Failure("No se encontro el autor"));
                 }
 
                 // Verificar si ya existe otro autor con el mismo email
@@ -106,7 +106,7 @@ namespace MicroserviciosRepoEscom.Controllers
                     var autorConEmail = await _autoresRepository.GetAutorByEmail(autorDTO.Email);
                     if(autorConEmail != null && autorConEmail.Id != id)
                     {
-                        return Conflict("Ya existe otro autor con este email");
+                        return Conflict(ApiResponse.Failure("Ya existe otro autor con este email"));
                     }
                 }
 
@@ -124,17 +124,17 @@ namespace MicroserviciosRepoEscom.Controllers
 
                 if(result)
                 {
-                    return NoContent();
+                    return Ok(ApiResponse.Success("Se actualizo correctamente el autor"));
                 }
                 else
                 {
-                    return StatusCode(500, "Error al actualizar el autor");
+                    return StatusCode(500, ApiResponse.Failure("Error al actualizar el autor"));
                 }
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Error al actualizar el autor con ID {id}");
-                return StatusCode(500, "Error interno del servidor");
+                return StatusCode(500, ApiResponse.Failure("Error interno del servidor.", new List<string> { ex.Message }));
             }
         }
 
@@ -148,7 +148,7 @@ namespace MicroserviciosRepoEscom.Controllers
                 var existingAutor = await _autoresRepository.GetAutorById(id);
                 if(existingAutor == null)
                 {
-                    return NotFound();
+                    return NotFound(ApiResponse.Failure("No se ah encontrado el autor"));
                 }
 
                 var result = await _autoresRepository.DeleteAutor(id);
@@ -159,13 +159,13 @@ namespace MicroserviciosRepoEscom.Controllers
                 }
                 else
                 {
-                    return StatusCode(500, "Error al eliminar el autor");
+                    return StatusCode(500, ApiResponse.Failure("Error al eliminar el autor"));
                 }
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Error al eliminar el autor con ID {id}");
-                return StatusCode(500, "Error interno del servidor");
+                return StatusCode(500, ApiResponse.Failure("Error interno del servidor.", new List<string> { ex.Message }));
             }
         }
     }

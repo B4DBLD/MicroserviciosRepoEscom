@@ -32,7 +32,7 @@ namespace MicroserviciosRepoEscom.Controllers
                 var material = await _materialesRepository.GetMaterialById(favoritoDTO.MaterialId, userRol);
                 if(material == null)
                 {
-                    return NotFound($"No se encontró el material con ID {favoritoDTO.MaterialId}");
+                    return NotFound(ApiResponse.Failure($"No se encontró el material con ID {favoritoDTO.MaterialId}"));
                 }
 
                 // Agregar a favoritos
@@ -40,29 +40,17 @@ namespace MicroserviciosRepoEscom.Controllers
 
                 if(result)
                 {
-                    return Ok(new FavoritoRespuesta
-                    {
-                        IsFavorite = true,
-                        Message = "Material agregado a favoritos exitosamente"
-                    });
+                    return Ok(ApiResponse.Success("Material agregado a favoritos exitosamente"));
                 }
                 else
                 {
-                    return BadRequest(new FavoritoRespuesta
-                    {
-                        IsFavorite = true,
-                        Message = "El material ya está en favoritos"
-                    });
+                    return BadRequest(ApiResponse.Success($"El material ya está en favoritos"));
                 }
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Error al agregar material {favoritoDTO.MaterialId} a favoritos del usuario {favoritoDTO.UserId}");
-                return StatusCode(500, new FavoritoRespuesta
-                {
-                    IsFavorite = false,
-                    Message = $"Error interno del servidor: {ex.Message}"
-                });
+                return StatusCode(500, ApiResponse.Failure("Error interno del servidor.", new List<string> { ex.Message }));
             }
         }
 
@@ -76,29 +64,17 @@ namespace MicroserviciosRepoEscom.Controllers
 
                 if(result)
                 {
-                    return Ok(new FavoritoRespuesta
-                    {
-                        IsFavorite = false,
-                        Message = "Material removido de favoritos exitosamente"
-                    });
+                    return Ok(ApiResponse.Success("Material removido de favoritos exitosamente"));
                 }
                 else
                 {
-                    return NotFound(new FavoritoRespuesta
-                    {
-                        IsFavorite = false,
-                        Message = "El material no estaba en favoritos"
-                    });
+                    return NotFound(ApiResponse.Failure("El material no estaba en favoritos"));
                 }
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Error al remover material {materialId} de favoritos del usuario {userId}");
-                return StatusCode(500, new FavoritoRespuesta
-                {
-                    IsFavorite = false,
-                    Message = $"Error interno del servidor: {ex.Message}"
-                });
+                return StatusCode(500, ApiResponse.Failure("Error interno del servidor.", new List<string> { ex.Message }));
             }
         }
 
@@ -110,12 +86,12 @@ namespace MicroserviciosRepoEscom.Controllers
             try
             {
                 var favoritos = await _favoritosRepository.GetUserFavorites(userId);
-                return Ok(favoritos);
+                return Ok(ApiResponse<IEnumerable<MaterialFvoritoDTO>>.Success (favoritos));
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Error al obtener favoritos del usuario {userId}");
-                return StatusCode(500, $"Error interno del servidor: {ex.Message}");
+                return StatusCode(500, ApiResponse.Failure("Error interno del servidor.", new List<string> { ex.Message }));
             }
         }
 

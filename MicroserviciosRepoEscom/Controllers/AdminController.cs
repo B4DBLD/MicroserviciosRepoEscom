@@ -46,22 +46,20 @@ namespace MicroserviciosRepoEscom.Controllers
                 {
                     string estadoTexto = dto.Disponible == 1 ? "habilitado" : "deshabilitado";
 
-                    return Ok(new
-                    {
-                        message = $"Material {estadoTexto} exitosamente",
-                        materialId = id,
-                        disponible = dto.Disponible
-                    });
+                    return Ok(ApiResponse<object>.Success(new 
+                        { MaterialId = id, 
+                          Disponible = dto.Disponible}, 
+                        $"Material {estadoTexto} exitosamente"));
                 }
                 else
                 {
-                    return StatusCode(500, "Error al cambiar la disponibilidad del material");
+                    return StatusCode(500, ApiResponse.Failure("Error al cambiar la disponibilidad del material"));
                 }
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Error al cambiar disponibilidad del material {id}");
-                return StatusCode(500, $"Error interno del servidor: {ex.Message}");
+                return StatusCode(500, ApiResponse.Failure($"Error interno del servidor: {ex.Message}"));
             }
         }
     }

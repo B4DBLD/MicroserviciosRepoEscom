@@ -51,17 +51,17 @@ namespace MicroserviciosRepoEscom.Controllers
                 {
                     int? userRol = await _materialesRepository.GetUserRol(userId);
                     var materiales = await _materialesRepository.GetAllMateriales(userRol);
-                    return Ok(materiales);
+                    return Ok(ApiResponse<IEnumerable<Material>>.Success(materiales));
                 }
                 else
                 {
-                    return BadRequest("El ID de usuario no puede ser nulo");
+                    return BadRequest(ApiResponse.Failure("El ID de usuario no puede ser nulo."));
                 }
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, "Error al obtener todos los materiales");
-                return StatusCode(500, "Error interno del servidor");
+                return StatusCode(500, ApiResponse.Failure("Error interno del servidor.", new List<string> { ex.Message }));
             }
         }
 
@@ -78,12 +78,12 @@ namespace MicroserviciosRepoEscom.Controllers
 
                     if(material == null)
                     {
-                        return NotFound($"No se encontró el material");
+                        return NotFound(ApiResponse.Failure($"No se encontró el material con ID {id}."));
                     }
 
                     if(!System.IO.File.Exists(material.Url))
                     {
-                        return BadRequest("El archivo no fue encontrado");
+                        return NotFound(ApiResponse.Failure("El archivo no fue encontrado"));
                     }
 
                     if(material.TipoArchivo == "PDF")
@@ -115,25 +115,25 @@ namespace MicroserviciosRepoEscom.Controllers
                         }
                         catch(FileNotFoundException)
                         {
-                            return BadRequest("El archivo PDF no está disponible");
+                            return NotFound(ApiResponse.Failure("El archivo PDF no está disponible"));
                         }
                     }
                     else
                     {
                         // Para ZIP u otros tipos, simplemente devolver el material tal cual
                         // Ya incluye rutaAcceso con la URL del servicio Docker
-                        return Ok(material);
+                        return Ok(ApiResponse<MaterialConRelacionesDTO>.Success(material));
                     }
                 }
                 else
                 {
-                    return BadRequest("El ID de usuario no puede ser nulo");
+                    return NotFound(ApiResponse.Failure("El ID de usuario no puede ser nulo"));
                 }
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Error al obtener el material con ID {id}");
-                return StatusCode(500, "Error interno del servidor");
+                return StatusCode(500, ApiResponse.Failure("Error interno del servidor.", new List<string> { ex.Message }));
             }
         }
 
@@ -149,24 +149,24 @@ namespace MicroserviciosRepoEscom.Controllers
 
                     if(material == null)
                     {
-                        return NotFound($"No se encontró el material");
+                        return NotFound(ApiResponse.Failure($"No se encontró el material"));
                     }
 
                     else
                     {
                         // Para ZIP u otros tipos, simplemente devolver el material tal cual
                         // Ya incluye rutaAcceso con la URL del servicio Docker
-                        return Ok(material);
+                        return Ok(ApiResponse<MaterialConRelacionesDTO>.Success(material));
                     }
                 }else
                 {
-                    return BadRequest("El ID de usuario no puede ser nulo");
+                    return BadRequest(ApiResponse.Failure("El ID de usuario no puede ser nulo"));
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Error al obtener el material con ID {id}");
-                return StatusCode(500, "Error interno del servidor");
+                return StatusCode(500, ApiResponse.Failure("Error interno del servidor"));
             }
         }
 
@@ -180,16 +180,16 @@ namespace MicroserviciosRepoEscom.Controllers
                 var autor = await _autoresRepository.GetAutorById(autorId);
                 if(autor == null)
                 {
-                    return NotFound($"No se encontró el autor con ID {autorId}");
+                    return NotFound(ApiResponse.Failure( $"No se encontró el autor con ID {autorId}"));
                 }
 
                 var materiales = await _materialesRepository.GetMaterialesByAutorId(autorId);
-                return Ok(materiales);
+                return Ok(ApiResponse<IEnumerable<MaterialConRelacionesDTO>>.Success(materiales));
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Error al obtener materiales del autor con ID {autorId}");
-                return StatusCode(500, "Error interno del servidor");
+                return StatusCode(500, ApiResponse.Failure("Error interno del servidor"));
             }
         }
 
@@ -203,16 +203,16 @@ namespace MicroserviciosRepoEscom.Controllers
                 var tag = await _tagsRepository.GetTagById(tagId);
                 if(tag == null)
                 {
-                    return NotFound($"No se encontró el tag con ID {tagId}");
+                    return NotFound(ApiResponse.Failure($"No se encontró el tag con ID {tagId}"));
                 }
 
                 var materiales = await _materialesRepository.GetMaterialesByTagId(tagId);
-                return Ok(materiales);
+                return Ok(ApiResponse<IEnumerable<MaterialConRelacionesDTO>>.Success(materiales));
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Error al obtener materiales con el tag ID {tagId}");
-                return StatusCode(500, "Error interno del servidor");
+                return StatusCode(500, ApiResponse.Failure("Error interno del servidor.", new List<string> { ex.Message }));
             }
         }
 
@@ -235,17 +235,17 @@ namespace MicroserviciosRepoEscom.Controllers
                     };
                     int? userRol = await _materialesRepository.GetUserRol(userId);
                     var materiales = await _materialesRepository.SearchMaterialesAvanzado(busqueda, userRol);
-                    return Ok(materiales);
+                    return Ok(ApiResponse<IEnumerable<MaterialConRelacionesDTO>>.Success(materiales));
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error al buscar materiales");
-                    return StatusCode(500, "Error interno del servidor");
+                    return StatusCode(500, ApiResponse.Failure("Error interno del servidor.", new List<string> { ex.Message }));
                 }
             }
             else
             {
-                return BadRequest("El ID de usuario no puede ser nulo");
+                return BadRequest(ApiResponse.Failure("El ID de usuario no puede ser nulo"));
             }
         }
 
@@ -262,14 +262,14 @@ namespace MicroserviciosRepoEscom.Controllers
                 // Validar que el archivo existe
                 if(archivo == null || archivo.Length == 0)
                 {
-                    return BadRequest("Debe proporcionar un archivo");
+                    return BadRequest(ApiResponse.Failure("Debe proporcionar un archivo"));
                 }
 
                 // Validar extensión del archivo
                 var fileExtension = Path.GetExtension(archivo.FileName).ToLowerInvariant();
                 if(fileExtension != ".pdf" && fileExtension != ".zip")
                 {
-                    return BadRequest("Tipo de archivo no permitido. Los formatos aceptados son: PDF y ZIP.");
+                    return BadRequest(ApiResponse.Failure("Tipo de archivo no permitido. Los formatos aceptados son: PDF y ZIP."));
                 }
 
                 // Deserializar el JSON
@@ -281,18 +281,18 @@ namespace MicroserviciosRepoEscom.Controllers
                 }
                 catch(Exception ex)
                 {
-                    return BadRequest($"Error al procesar el JSON: {ex.Message}");
+                    return BadRequest(ApiResponse.Failure($"Error al procesar el JSON: {ex.Message}"));
                 }
 
                 // Validar los datos básicos
                 if(string.IsNullOrEmpty(datos.NombreMaterial))
                 {
-                    return BadRequest("El nombre del material es requerido");
+                    return BadRequest(ApiResponse.Failure("El nombre del material es requerido"));
                 }
 
                 if(datos.Autores == null || datos.Autores.Count == 0)
                 {
-                    return BadRequest("Debe especificar al menos un autor");
+                    return BadRequest(ApiResponse.Failure("Debe especificar al menos un autor"));
                 }
 
                 // Determinar tipo de archivo
@@ -309,7 +309,7 @@ namespace MicroserviciosRepoEscom.Controllers
                         var tag = await _tagsRepository.GetTagById(tagId);
                         if(tag == null)
                         {
-                            return BadRequest($"El tag con ID {tagId} no existe");
+                            return BadRequest(ApiResponse.Failure($"El tag con ID {tagId} no existe"));
                         }
                     }
                 }
@@ -321,7 +321,7 @@ namespace MicroserviciosRepoEscom.Controllers
                     // Validar que el email es válido
                     if(string.IsNullOrEmpty(autor.Email) || !IsValidEmail(autor.Email))
                     {
-                        return BadRequest($"El email '{autor.Email}' no es válido");
+                        return BadRequest(ApiResponse.Failure($"El email '{autor.Email}' no es válido"));
                     }
 
                     // Buscar por email
@@ -381,12 +381,12 @@ namespace MicroserviciosRepoEscom.Controllers
                     }
                 }
 
-                return CreatedAtAction(nameof(GetMaterial), new { id = materialId }, material);
+                return CreatedAtAction(nameof(GetMaterial), new { id = materialId }, ApiResponse<MaterialConRelacionesDTO>.Success(material));
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, "Error al subir material");
-                return StatusCode(500, "Error interno del servidor");
+                return StatusCode(500, ApiResponse.Failure("Error interno del servidor.", new List<string> { ex.Message }));
             }
         }
 
@@ -440,7 +440,7 @@ namespace MicroserviciosRepoEscom.Controllers
                         var autor = await _autoresRepository.GetAutorById(autorId);
                         if(autor == null)
                         {
-                            return BadRequest($"No existe un autor con ID {autorId}");
+                            return BadRequest(ApiResponse.Failure($"No existe un autor con ID {autorId}"));
                         }
                     }
                 }
@@ -453,7 +453,7 @@ namespace MicroserviciosRepoEscom.Controllers
                         var tag = await _tagsRepository.GetTagById(tagId);
                         if(tag == null)
                         {
-                            return BadRequest($"No existe un tag con ID {tagId}");
+                            return BadRequest(ApiResponse.Failure($"No existe un tag con ID {tagId}"));
                         }
                     }
                 }
@@ -480,17 +480,17 @@ namespace MicroserviciosRepoEscom.Controllers
                 {
                     // Obtener el material actualizado
                     var updatedMaterial = await _materialesRepository.GetMaterialById(id);
-                    return Ok(updatedMaterial);
+                    return Ok(ApiResponse<MaterialConRelacionesDTO>.Success (updatedMaterial));
                 }
                 else
                 {
-                    return StatusCode(500, "Error al actualizar el material");
+                    return StatusCode(500, ApiResponse.Failure("Error al actualizar el material"));
                 }
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Error al actualizar el material con ID {id}");
-                return StatusCode(500, "Error interno del servidor");
+                return StatusCode(500, ApiResponse.Failure("Error interno del servidor.", new List<string> { ex.Message }));
             }
         }
 
@@ -512,17 +512,17 @@ namespace MicroserviciosRepoEscom.Controllers
 
                 if(result)
                 {
-                    return NoContent();
+                    return Ok(ApiResponse.Success());
                 }
                 else
                 {
-                    return StatusCode(500, "Error al eliminar el material");
+                    return StatusCode(500, ApiResponse.Failure("Error al eliminar el material"));
                 }
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Error al eliminar el material con ID {id}");
-                return StatusCode(500, "Error interno del servidor");
+                return StatusCode(500, ApiResponse.Failure("Error interno del servidor.", new List<string> { ex.Message }));
             }
         }
     }

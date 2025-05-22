@@ -1,4 +1,5 @@
-﻿using MicroserviciosRepoEscom.Models;
+﻿using System.Timers;
+using MicroserviciosRepoEscom.Models;
 using MicroserviciosRepoEscom.Repositorios;
 using Microsoft.AspNetCore.Mvc;
 
@@ -24,12 +25,12 @@ namespace MicroserviciosRepoEscom.Controllers
             try
             {
                 var tags = await _tagsRepository.GetAllTags();
-                return Ok(tags);
+                return Ok(ApiResponse<IEnumerable<Tag>>.Success( tags));
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, "Error al obtener todos los tags");
-                return StatusCode(500, "Error interno del servidor");
+                return StatusCode(500, ApiResponse.Failure("Error interno del servidor.", new List<string> { ex.Message }));
             }
         }
 
@@ -43,7 +44,7 @@ namespace MicroserviciosRepoEscom.Controllers
 
                 if(tag == null)
                 {
-                    return NotFound();
+                    return NotFound(ApiResponse.Failure("No se encontro el Tag"));
                 }
 
                 return Ok(tag);
@@ -51,7 +52,7 @@ namespace MicroserviciosRepoEscom.Controllers
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Error al obtener el tag con ID {id}");
-                return StatusCode(500, "Error interno del servidor");
+                return StatusCode(500, ApiResponse.Failure("Error interno del servidor.", new List<string> { ex.Message }));
             }
         }
 
@@ -65,7 +66,7 @@ namespace MicroserviciosRepoEscom.Controllers
                 var existingTag = await _tagsRepository.BuscarTagPorNombre(tagDTO.Nombre);
                 if(existingTag != null)
                 {
-                    return Conflict($"Ya existe un tag con el nombre '{tagDTO.Nombre}'");
+                    return Conflict(ApiResponse.Failure($"Ya existe un tag con el nombre '{tagDTO.Nombre}'"));
                 }
 
                 var tag = new Tag
@@ -76,12 +77,12 @@ namespace MicroserviciosRepoEscom.Controllers
                 var id = await _tagsRepository.CreateTag(tag);
                 tag.Id = id;
 
-                return CreatedAtAction(nameof(GetTag), new { id = tag.Id }, tag);
+                return CreatedAtAction(nameof(GetTag), new { id = tag.Id }, ApiResponse<Tag>.Success(tag));
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, "Error al crear tag");
-                return StatusCode(500, "Error interno del servidor");
+                return StatusCode(500, ApiResponse.Failure("Error interno del servidor.", new List<string> { ex.Message }));
             }
         }
 
@@ -95,14 +96,14 @@ namespace MicroserviciosRepoEscom.Controllers
                 var existingTag = await _tagsRepository.GetTagById(id);
                 if(existingTag == null)
                 {
-                    return NotFound();
+                    return NotFound(ApiResponse.Failure("El tag no existe"));
                 }
 
                 // Verificar si ya existe otro tag con el mismo nombre
                 var tagConNombre = await _tagsRepository.BuscarTagPorNombre(tagDTO.Nombre);
                 if(tagConNombre != null && tagConNombre.Id != id)
                 {
-                    return Conflict($"Ya existe otro tag con el nombre '{tagDTO.Nombre}'");
+                    return Conflict(ApiResponse.Failure($"Ya existe otro tag con el nombre '{tagDTO.Nombre}'"));
                 }
 
                 existingTag.Nombre = tagDTO.Nombre;
@@ -111,17 +112,17 @@ namespace MicroserviciosRepoEscom.Controllers
 
                 if(result)
                 {
-                    return NoContent();
+                    return Ok(ApiResponse.Success("El tag se actualizo exitosamente"));
                 }
                 else
                 {
-                    return StatusCode(500, "Error al actualizar el tag");
+                    return StatusCode(500, ApiResponse.Failure("Error al actualizar el tag"));
                 }
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Error al actualizar el tag con ID {id}");
-                return StatusCode(500, "Error interno del servidor");
+                return StatusCode(500, ApiResponse.Failure("Error interno del servidor.", new List<string> { ex.Message }));
             }
         }
 
@@ -135,24 +136,24 @@ namespace MicroserviciosRepoEscom.Controllers
                 var existingTag = await _tagsRepository.GetTagById(id);
                 if(existingTag == null)
                 {
-                    return NotFound();
+                    return NotFound(ApiResponse.Failure("El tag no existe"));
                 }
 
                 var result = await _tagsRepository.DeleteTag(id);
 
                 if(result)
                 {
-                    return NoContent();
+                    return Ok(ApiResponse.Success("El tag fue eliminado exitosamente"));
                 }
                 else
                 {
-                    return StatusCode(500, "Error al eliminar el tag");
+                    return StatusCode(500, ApiResponse.Failure("Error al eliminar el tag"));
                 }
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Error al eliminar el tag con ID {id}");
-                return StatusCode(500, "Error interno del servidor");
+                return StatusCode(500, ApiResponse.Failure("Error interno del servidor.", new List<string> { ex.Message }));
             }
         }
     }
