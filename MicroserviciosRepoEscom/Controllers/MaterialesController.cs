@@ -118,14 +118,11 @@ namespace MicroserviciosRepoEscom.Controllers
                             return NotFound(ApiResponse.Failure("El archivo PDF no está disponible"));
                         }
                     }
-                    else if(material.TipoArchivo == "LINK"){
-                        return Ok(ApiResponse<MaterialConRelacionesDTO>.Success(material));
-                    }
                     else
                     {
                         // Para ZIP u otros tipos, simplemente devolver el material tal cual
                         // Ya incluye rutaAcceso con la URL del servicio Docker
-                        return Ok(ApiResponse<MaterialConRelacionesDTO>.Success(material));
+                        return BadRequest(ApiResponse.Failure("No se pudo cargar el material debido a que no es un pdf"));
                     }
                 }
                 else
