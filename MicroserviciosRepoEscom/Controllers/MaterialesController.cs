@@ -81,13 +81,13 @@ namespace MicroserviciosRepoEscom.Controllers
                         return NotFound(ApiResponse.Failure($"No se encontró el material con ID {id}."));
                     }
 
-                    if(!System.IO.File.Exists(material.Url))
-                    {
-                        return NotFound(ApiResponse.Failure("El archivo no fue encontrado"));
-                    }
-
                     if(material.TipoArchivo == "PDF")
                     {
+
+                        if(!System.IO.File.Exists(material.Url))
+                        {
+                            return NotFound(ApiResponse.Failure("El archivo no fue encontrado"));
+                        }
                         try
                         {
                             Response.Headers.Add("Content-Disposition", $"inline; filename=\"{material.Nombre}.pdf\"");
@@ -117,6 +117,9 @@ namespace MicroserviciosRepoEscom.Controllers
                         {
                             return NotFound(ApiResponse.Failure("El archivo PDF no está disponible"));
                         }
+                    }
+                    else if(material.TipoArchivo == "LINK"){
+                        return Ok(ApiResponse<MaterialConRelacionesDTO>.Success(material));
                     }
                     else
                     {
@@ -253,23 +256,29 @@ namespace MicroserviciosRepoEscom.Controllers
 
         // POST: api/Materiales/Upload
         [HttpPost("Upload")]
-        public async Task<ActionResult<MaterialConRelacionesDTO>> UploadMaterial([FromForm] string datosJson, IFormFile archivo)
+        public async Task<ActionResult<MaterialConRelacionesDTO>> UploadMaterial([FromForm] string datosJson, IFormFile archivo, [FromForm] string Url = null)
         {
+            string fileName = string.Empty;
+            string tipoArchivo = string.Empty;
+            var fileExtension = string.Empty;
             try
             {
                 datosJson = Strings.Replace(datosJson, "'", "");
 
-                // Validar que el archivo existe
-                if(archivo == null || archivo.Length == 0)
+                if (datosJson == null || datosJson.Length == 0)
                 {
-                    return BadRequest(ApiResponse.Failure("Debe proporcionar un archivo"));
+                    return BadRequest(ApiResponse.Failure("El JSON de datos es requerido"));
                 }
 
-                // Validar extensión del archivo
-                var fileExtension = Path.GetExtension(archivo.FileName).ToLowerInvariant();
-                if(fileExtension != ".pdf" && fileExtension != ".zip")
+                // Verificar que se proporcione un archivo o un enlace, pero no ambos
+                if(archivo == null && string.IsNullOrEmpty(Url))
                 {
-                    return BadRequest(ApiResponse.Failure("Tipo de archivo no permitido. Los formatos aceptados son: PDF y ZIP."));
+                    return BadRequest(ApiResponse.Failure("Debe proporcionar un archivo o un enlace"));
+                }
+
+                if(archivo != null && !string.IsNullOrEmpty(Url))
+                {
+                    return BadRequest(ApiResponse.Failure("No se puede proporcionar un archivo y un enlace al mismo tiempo"));
                 }
 
                 // Deserializar el JSON
@@ -295,11 +304,42 @@ namespace MicroserviciosRepoEscom.Controllers
                     return BadRequest(ApiResponse.Failure("Debe especificar al menos un autor"));
                 }
 
-                // Determinar tipo de archivo
-                string tipoArchivo = fileExtension == ".pdf" ? "PDF" : "ZIP";
+                // Validar que el archivo existe
+                if(archivo != null)
+                {
+                    if(archivo.Length == 0) {
+                        return BadRequest(ApiResponse.Failure("El archivo está vacío"));
+                    }
 
-                // Guardar el archivo usando el servicio existente
-                string fileName = await _fileService.SaveFile(archivo);
+                    // Validar extensión del archivo
+                    fileExtension = Path.GetExtension(archivo.FileName).ToLowerInvariant();
+                    if(fileExtension != ".pdf" && fileExtension != ".zip")
+                    {
+                        return BadRequest(ApiResponse.Failure("Tipo de archivo no permitido. Los formatos aceptados son: PDF y ZIP."));
+                    }
+
+                    // Determinar tipo de archivo
+                    tipoArchivo = fileExtension == ".pdf" ? "PDF" : "ZIP";
+
+                    // Guardar el archivo usando el servicio existente
+                    fileName = await _fileService.SaveFile(archivo);
+
+                }
+                else
+                {
+                    // Es un enlace
+                    // Validar que la URL sea potencialmente válida
+                    if(!Uri.TryCreate(Url, UriKind.Absolute, out Uri uriResult) ||
+                        (uriResult.Scheme != Uri.UriSchemeHttp && uriResult.Scheme != Uri.UriSchemeHttps))
+                    {
+                        return BadRequest(ApiResponse.Failure("La URL proporcionada no es válida"));
+                    }
+
+                    tipoArchivo = "LINK";
+                    fileName =  Url; // Usar la URL como nombre del archivo
+                }
+
+
 
                 // Verificar que los TagIds son válidos
                 if(datos.TagIds != null && datos.TagIds.Count > 0)
@@ -389,9 +429,6 @@ namespace MicroserviciosRepoEscom.Controllers
                 return StatusCode(500, ApiResponse.Failure("Error interno del servidor.", new List<string> { ex.Message }));
             }
         }
-
-        
-
 
         private bool IsValidEmail(string email)
         {
