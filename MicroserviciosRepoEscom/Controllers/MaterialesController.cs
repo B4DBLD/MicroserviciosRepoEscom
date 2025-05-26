@@ -50,7 +50,7 @@ namespace MicroserviciosRepoEscom.Controllers
                 if(userId != null)
                 {
                     int? userRol = await _materialesRepository.GetUserRol(userId);
-                    var materiales = await _materialesRepository.GetAllMateriales(userRol);
+                        var materiales = await _materialesRepository.GetAllMateriales(userRol);
                     return Ok(ApiResponse<IEnumerable<Material>>.Success(materiales));
                 }
                 else
@@ -65,8 +65,8 @@ namespace MicroserviciosRepoEscom.Controllers
             }
         }
 
-        // GET: api/Materiales/5
-        [HttpGet("{id}")]
+        // GET: api/Materiales/Visualizar/5
+        [HttpGet("Visualizar/{id}")]
         public async Task<ActionResult<MaterialConRelacionesDTO>> GetMaterialStream(int id, int? userId = null)
         {
             try
@@ -81,7 +81,7 @@ namespace MicroserviciosRepoEscom.Controllers
                         return NotFound(ApiResponse.Failure($"No se encontró el material con ID {id}."));
                     }
 
-                    if(material.TipoArchivo == "PDF")
+                    if(material.TipoArchivo == "PDF" || material.TipoArchivo == "LINK")
                     {
 
                         if(!System.IO.File.Exists(material.Url))
@@ -172,18 +172,29 @@ namespace MicroserviciosRepoEscom.Controllers
 
         // GET: api/Materiales/ByAutor/5
         [HttpGet("ByAutor/{autorId}")]
-        public async Task<ActionResult<IEnumerable<MaterialConRelacionesDTO>>> GetMaterialesByAutor(int autorId)
+        public async Task<ActionResult<IEnumerable<MaterialConRelacionesDTO>>> GetMaterialesByAutor(int autorId, int? userID = null)
         {
             try
             {
                 // Verificar que el autor exista
                 var autor = await _autoresRepository.GetAutorById(autorId);
-                if(autor == null)
+                int? userRol = null;
+
+                if (userID != null)
+                {
+                    userRol = await (_materialesRepository.GetUserRol(userID));
+                }
+                else
+                {
+                    userRol = await (_materialesRepository.GetUserRol(autorId));
+                }
+
+                if (autor == null)
                 {
                     return NotFound(ApiResponse.Failure( $"No se encontró el autor con ID {autorId}"));
                 }
 
-                var materiales = await _materialesRepository.GetMaterialesByAutorId(autorId);
+                var materiales = await _materialesRepository.GetMaterialesByAutorId(autorId, userRol);
                 return Ok(ApiResponse<IEnumerable<MaterialConRelacionesDTO>>.Success(materiales));
             }
             catch(Exception ex)
@@ -195,18 +206,20 @@ namespace MicroserviciosRepoEscom.Controllers
 
         // GET: api/Materiales/ByTag/5
         [HttpGet("ByTag/{tagId}")]
-        public async Task<ActionResult<IEnumerable<MaterialConRelacionesDTO>>> GetMaterialesByTag(int tagId)
+        public async Task<ActionResult<IEnumerable<MaterialConRelacionesDTO>>> GetMaterialesByTag(int tagId, int? userID = null)
         {
             try
             {
                 // Verificar que el tag exista
                 var tag = await _tagsRepository.GetTagById(tagId);
-                if(tag == null)
+                int? userRol = await _materialesRepository.GetUserRol(userID);
+
+                if (tag == null)
                 {
                     return NotFound(ApiResponse.Failure($"No se encontró el tag con ID {tagId}"));
                 }
 
-                var materiales = await _materialesRepository.GetMaterialesByTagId(tagId);
+                var materiales = await _materialesRepository.GetMaterialesByTagId(tagId, userRol);
                 return Ok(ApiResponse<IEnumerable<MaterialConRelacionesDTO>>.Success(materiales));
             }
             catch(Exception ex)
@@ -253,7 +266,7 @@ namespace MicroserviciosRepoEscom.Controllers
 
         // POST: api/Materiales/Upload
         [HttpPost("Upload")]
-        public async Task<ActionResult<MaterialConRelacionesDTO>> UploadMaterial([FromForm] string datosJson, IFormFile archivo, [FromForm] string Url = null)
+        public async Task<ActionResult<MaterialConRelacionesDTO>> UploadMaterial([FromForm] string datosJson, IFormFile archivo = null, [FromForm] string Url = null)
         {
             string fileName = string.Empty;
             string tipoArchivo = string.Empty;
@@ -392,7 +405,7 @@ namespace MicroserviciosRepoEscom.Controllers
                 };
 
                 var materialId = await _materialesRepository.CreateMaterial(createDTO, fileName, tipoArchivo);
-                var material = await _materialesRepository.GetMaterialById(materialId);
+                var material = await _materialesRepository.GetMaterialById(materialId, 3);
 
                 if(tipoArchivo == "ZIP")
                 {
@@ -455,7 +468,7 @@ namespace MicroserviciosRepoEscom.Controllers
 
         // PUT: api/Materiales/5
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateMaterial(int id, MaterialUpdateDTO materialDTO)
+        public async Task<IActionResult> UpdateMaterial(int id, MaterialUpdateDTO materialDTO, int userID)
         {
             try
             {
@@ -514,7 +527,7 @@ namespace MicroserviciosRepoEscom.Controllers
                 {
                     // Obtener el material actualizado
                     var updatedMaterial = await _materialesRepository.GetMaterialById(id);
-                    return Ok(ApiResponse<MaterialConRelacionesDTO>.Success (updatedMaterial));
+                    return Ok(ApiResponse<MaterialConRelacionesDTO>.Success (updatedMaterial, "El material se actualizo correctamente"));
                 }
                 else
                 {
@@ -546,7 +559,7 @@ namespace MicroserviciosRepoEscom.Controllers
 
                 if(result)
                 {
-                    return Ok(ApiResponse.Success());
+                    return Ok(ApiResponse.Success("El material se ha eliminado correctamente."));
                 }
                 else
                 {

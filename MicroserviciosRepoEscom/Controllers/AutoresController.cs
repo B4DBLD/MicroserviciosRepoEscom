@@ -155,7 +155,7 @@ namespace MicroserviciosRepoEscom.Controllers
 
                 if(result)
                 {
-                    return NoContent();
+                    return Ok(ApiResponse.Success("El autor se elimino correctamente"));
                 }
                 else
                 {

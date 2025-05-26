@@ -64,10 +64,12 @@ namespace MicroserviciosRepoEscom.Repositorios
             await connection.OpenAsync();
 
             // Construir consulta basada en el rol
-            string whereClause = userRol == 3
+            string whereClause = (userRol == 3 || userRol == 2)
                 ? "WHERE id = @id" // Admin ve todos
                 : "WHERE id = @id AND disponible = 1"; // Alumno solo ve disponibles
 
+
+            
             // Obtener el material
             using var command = connection.CreateCommand();
             command.CommandText = $@"
@@ -159,9 +161,17 @@ namespace MicroserviciosRepoEscom.Repositorios
             {
                 // Determinar la ruta de acceso según el tipo
                 string rutaAcceso;
-                rutaAcceso = Path.Combine(_uploadsFolder, fileUrl);
 
-                int disponible = tipoArchivo == "PDF" ? 1 : 0;
+                if (tipoArchivo == "LINK")
+                {
+                    rutaAcceso = fileUrl;
+                }
+                else
+                {
+                    rutaAcceso = Path.Combine(_uploadsFolder, fileUrl);
+                }
+                
+                int disponible = (tipoArchivo == "PDF" || tipoArchivo == "LINK") ? 1 : 0;
 
                 // Crear el material
                 int materialId;
@@ -371,14 +381,14 @@ namespace MicroserviciosRepoEscom.Repositorios
                     await command.ExecuteNonQueryAsync();
                 }
 
-                // Eliminar relaciones en UserFavorites
-                //using(var command = connection.CreateCommand())
-                //{
-                //    command.Transaction = transaction;
-                //    command.CommandText = "DELETE FROM UserFavorites WHERE materialId = @id";
-                //    command.Parameters.AddWithValue("@id", id);
-                //    await command.ExecuteNonQueryAsync();
-                //}
+                //Eliminar relaciones en UserFavorites
+                using(var command = connection.CreateCommand())
+                {
+                    command.Transaction = transaction;
+                    command.CommandText = "DELETE FROM UserFavorites WHERE materialId = @id";
+                    command.Parameters.AddWithValue("@id", id);
+                    await command.ExecuteNonQueryAsync();
+                }
 
                 //// Eliminar relaciones en UserSearch
                 //using(var command = connection.CreateCommand())
@@ -413,12 +423,15 @@ namespace MicroserviciosRepoEscom.Repositorios
                 throw;
             }
         }
-        public async Task<IEnumerable<MaterialConRelacionesDTO>> GetMaterialesByAutorId(int autorId)
+        public async Task<IEnumerable<MaterialConRelacionesDTO>> GetMaterialesByAutorId(int autorId, int? userRol = null)
         {
             using var connection = new SqliteConnection(_dbConfig.ConnectionString);
             await connection.OpenAsync();
 
             var materiales = new List<MaterialConRelacionesDTO>();
+
+            
+                
 
             // Obtener los IDs de materiales relacionados con el autor
             using(var command = connection.CreateCommand())
@@ -435,7 +448,7 @@ namespace MicroserviciosRepoEscom.Repositorios
                 while(await reader.ReadAsync())
                 {
                     int materialId = reader.GetInt32(0);
-                    var material = await GetMaterialById(materialId);
+                    var material = await GetMaterialById(materialId, userRol);
                     if(material != null)
                     {
                         materiales.Add(material);
@@ -446,7 +459,7 @@ namespace MicroserviciosRepoEscom.Repositorios
             return materiales;
         }
 
-        public async Task<IEnumerable<MaterialConRelacionesDTO>> GetMaterialesByTagId(int tagId)
+        public async Task<IEnumerable<MaterialConRelacionesDTO>> GetMaterialesByTagId(int tagId, int? userRol = null)
         {
             using var connection = new SqliteConnection(_dbConfig.ConnectionString);
             await connection.OpenAsync();
@@ -468,7 +481,7 @@ namespace MicroserviciosRepoEscom.Repositorios
                 while(await reader.ReadAsync())
                 {
                     int materialId = reader.GetInt32(0);
-                    var material = await GetMaterialById(materialId);
+                    var material = await GetMaterialById(materialId, userRol);
                     if(material != null)
                     {
                         materiales.Add(material);
@@ -730,6 +743,7 @@ namespace MicroserviciosRepoEscom.Repositorios
         {
             using var connection = new SqliteConnection(_dbConfig.ConnectionString);
             await connection.OpenAsync();
+            int rol = 0;
 
             using var command = connection.CreateCommand();
             command.CommandText = @"
@@ -742,10 +756,10 @@ namespace MicroserviciosRepoEscom.Repositorios
 
             if(await reader.ReadAsync())
             {
-                id = reader.GetInt32(0);
+                rol = reader.GetInt32(0);
             }
 
-            return id;
+            return rol;
 
         }
 
