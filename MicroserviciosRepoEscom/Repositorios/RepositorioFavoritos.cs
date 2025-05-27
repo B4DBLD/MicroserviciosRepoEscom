@@ -8,11 +8,13 @@ namespace MicroserviciosRepoEscom.Repositorios
     {
         private readonly DBConfig _dbConfig;
         private readonly ILogger<RepositorioFavoritos> _logger;
+        private readonly InterfazRepositorioMateriales _materialesRepository;
 
-        public RepositorioFavoritos(DBConfig dbConfig, ILogger<RepositorioFavoritos> logger)
+        public RepositorioFavoritos(DBConfig dbConfig, ILogger<RepositorioFavoritos> logger, InterfazRepositorioMateriales materialesRepository)
         {
             _dbConfig = dbConfig;
             _logger = logger;
+            _materialesRepository = materialesRepository;
         }
 
         public async Task<bool> AddToFavorites(int userId, int materialId)
@@ -98,18 +100,32 @@ namespace MicroserviciosRepoEscom.Repositorios
         public async Task<IEnumerable<MaterialFvoritoDTO>> GetUserFavorites(int userId)
         {
             string url =  string.Empty;
+            string whereClause = string.Empty;
             using var connection = new SqliteConnection(_dbConfig.ConnectionString);
             await connection.OpenAsync();
 
             var materiales = new List<MaterialFvoritoDTO>();
 
-            // Obtener los materiales favoritos del usuario
-            using var command = connection.CreateCommand();
-            command.CommandText = @"
+            int? userRol = await _materialesRepository.GetUserRol(userId);
+
+            if(userRol == 1)
+            {
+                whereClause = "AND m.disponible = 1";
+            }
+            else
+            {
+                whereClause = string.Empty;
+            }
+
+
+
+                // Obtener los materiales favoritos del usuario
+                using var command = connection.CreateCommand();
+            command.CommandText = @$"
                 SELECT m.id, m.nombre, m.url, m.tipoArchivo, m.fechaCreacion, uf.fechaAgregado
                 FROM Material m
                 JOIN UserFavorites uf ON m.id = uf.materialId
-                WHERE uf.userId = @userId
+                WHERE uf.userId = @userId {whereClause}
                 ORDER BY uf.fechaAgregado DESC";
             command.Parameters.AddWithValue("@userId", userId);
 
