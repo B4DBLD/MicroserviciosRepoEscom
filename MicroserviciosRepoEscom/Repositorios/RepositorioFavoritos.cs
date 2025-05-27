@@ -97,6 +97,7 @@ namespace MicroserviciosRepoEscom.Repositorios
 
         public async Task<IEnumerable<MaterialFvoritoDTO>> GetUserFavorites(int userId)
         {
+            string url =  string.Empty;
             using var connection = new SqliteConnection(_dbConfig.ConnectionString);
             await connection.OpenAsync();
 
@@ -105,7 +106,7 @@ namespace MicroserviciosRepoEscom.Repositorios
             // Obtener los materiales favoritos del usuario
             using var command = connection.CreateCommand();
             command.CommandText = @"
-                SELECT m.id, m.nombre, m.tipoArchivo, m.fechaCreacion, uf.fechaAgregado
+                SELECT m.id, m.nombre, m.url, m.tipoArchivo, m.fechaCreacion, uf.fechaAgregado
                 FROM Material m
                 JOIN UserFavorites uf ON m.id = uf.materialId
                 WHERE uf.userId = @userId
@@ -116,13 +117,23 @@ namespace MicroserviciosRepoEscom.Repositorios
 
             while(await reader.ReadAsync())
             {
+                if (reader.GetString(3) == "PDF")
+                {
+                    url = "";
+                }
+                else
+                {
+                    url = reader.GetString(2);
+                }
+
                 var material = new MaterialFvoritoDTO
                 {
                     Id = reader.GetInt32(0),
                     Nombre = reader.GetString(1),
-                    TipoArchivo = reader.GetString(2),
-                    FechaCreacion = reader.GetString(3),
-                    FechaAgregadoFavoritos = reader.GetString(4),
+                    url = url,
+                    TipoArchivo = reader.GetString(3),
+                    FechaCreacion = reader.GetString(4),
+                    FechaAgregadoFavoritos = reader.GetString(5),
                     Autores = new List<Autor>(),
                     Tags = new List<Tag>()
                 };

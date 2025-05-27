@@ -65,6 +65,7 @@ builder.Services.AddScoped<IFileService, FileService>();
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
 builder.Services.AddHttpClient("ResendApi");
 builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<InterfazRepositorioHistorial, RepositorioHistorial>();
 
 // Add services to the container.
 
@@ -82,7 +83,7 @@ var app = builder.Build();
 // Configure the HTTP request pipeline.
 
 
-app.Urls.Add("http://10.0.0.4:8081");
+//app.Urls.Add("http://10.0.0.4:8081");
 app.UseSwagger();
 app.UseSwaggerUI();
 

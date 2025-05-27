@@ -20,6 +20,7 @@ namespace MicroserviciosRepoEscom.Controllers
         private readonly InterfazRepositorioMateriales _materialesRepository;
         private readonly InterfazRepositorioAutores _autoresRepository;
         private readonly InterfazRepositorioTags _tagsRepository;
+        private readonly InterfazRepositorioHistorial _historialRepository;
         private readonly IFileService _fileService;
         private readonly IEmailService _emailService;
         private readonly string _uploadsFolder;
@@ -29,6 +30,7 @@ namespace MicroserviciosRepoEscom.Controllers
             InterfazRepositorioMateriales materialesRepository,
             InterfazRepositorioAutores autoresRepository,
             InterfazRepositorioTags tagsRepository,
+            InterfazRepositorioHistorial historialRepository,
             IFileService fileService,
             IEmailService emailService,
             ILogger<MaterialesController> logger)
@@ -36,6 +38,7 @@ namespace MicroserviciosRepoEscom.Controllers
             _materialesRepository = materialesRepository;
             _autoresRepository = autoresRepository;
             _tagsRepository = tagsRepository;
+            _historialRepository = historialRepository;
             _fileService = fileService;
             _emailService = emailService;
             _logger = logger;
@@ -138,7 +141,7 @@ namespace MicroserviciosRepoEscom.Controllers
         }
 
         [HttpGet("{id}/Detalles")]
-        public async Task<ActionResult<MaterialConRelacionesDTO>> GetMaterial(int id, int? userId = null)
+        public async Task<ActionResult<MaterialConRelacionesDTO>> GetMaterial(int id, int userId)
         {
             try
             {
@@ -146,6 +149,7 @@ namespace MicroserviciosRepoEscom.Controllers
                 {
                     int? userRol = await _materialesRepository.GetUserRol(userId);
                     var material = await _materialesRepository.GetMaterialById(id, userRol);
+                    await _historialRepository.RegistrarConsulta(userId, material.Id);
 
                     if(material == null)
                     {
