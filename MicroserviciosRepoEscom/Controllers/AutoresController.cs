@@ -55,6 +55,28 @@ namespace MicroserviciosRepoEscom.Controllers
             }
         }
 
+        // GET: api/Autores/5
+        [HttpGet("Relacion/{id}")]
+        public async Task<ActionResult<int>> GetRelacion(int id)
+        {
+            try
+            {
+                var autor = await _autoresRepository.GetAutorById(id);
+
+                if(autor == null)
+                {
+                    return NotFound();
+                }
+
+                return Ok(ApiResponse<Autor>.Success(autor));
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Error al obtener el autor con ID {id}");
+                return StatusCode(500, ApiResponse.Failure("Error interno del servidor.", new List<string> { ex.Message }));
+            }
+        }
+
         // POST: api/Autores
         [HttpPost]
         public async Task<ActionResult<Autor>> CreateAutor(AutorCreateDTO autorDTO)

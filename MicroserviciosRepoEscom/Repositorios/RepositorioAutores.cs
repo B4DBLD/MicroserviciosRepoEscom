@@ -1,16 +1,20 @@
 ﻿using MicroserviciosRepoEscom.Conexion;
+using MicroserviciosRepoEscom.Controllers;
 using MicroserviciosRepoEscom.Models;
 using Microsoft.Data.Sqlite;
+using System.Reflection.PortableExecutable;
 
 namespace MicroserviciosRepoEscom.Repositorios
 {
     public class RepositorioAutores : InterfazRepositorioAutores
     {
         private readonly DBConfig _dbConfig;
+        private readonly ILogger<RepositorioAutores> _logger;
 
-        public RepositorioAutores(DBConfig dbConfig)
+        public RepositorioAutores(DBConfig dbConfig, ILogger<RepositorioAutores> logger)
         {
             _dbConfig = dbConfig;
+            _logger = logger;
         }
 
         public async Task<IEnumerable<Autor>> GetAllAutores()
@@ -218,5 +222,63 @@ namespace MicroserviciosRepoEscom.Repositorios
                 throw;
             }
         }
+
+        public async Task<bool> CrearRelacion(int usuarioId, int autorId)
+        {
+            using var connection = new SqliteConnection(_dbConfig.ConnectionString);
+            await connection.OpenAsync();
+
+            try
+            {
+                using var command = connection.CreateCommand();
+                command.CommandText = @"
+                    INSERT INTO UsuarioAutor (usuarioId, autorId)
+                    VALUES (@usuarioId, @autorId)
+                    ON CONFLICT(usuarioId, autorId) DO NOTHING";
+
+                command.Parameters.AddWithValue("@usuarioId", usuarioId);
+                command.Parameters.AddWithValue("@autorId", autorId);
+
+                int rowsAffected = await command.ExecuteNonQueryAsync();
+
+                if(rowsAffected > 0)
+                {
+                    _logger.LogInformation($"Relación creada: Usuario {usuarioId} - Autor {autorId}");
+                }
+                else
+                {
+                    _logger.LogInformation($"Relación ya existía: Usuario {usuarioId} - Autor {autorId}");
+                }
+
+                return true; // Siempre retorna true porque ON CONFLICT DO NOTHING no falla
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Error al crear relación: Usuario {usuarioId} - Autor {autorId}");
+                return false;
+            }
+
+        }
+
+        public async Task<int> GetRelacion(int usuarioId)
+        {
+            int autorID = 0;
+            using var connection = new SqliteConnection(_dbConfig.ConnectionString);
+            await connection.OpenAsync();
+
+            using var command = connection.CreateCommand();
+            command.CommandText = "SELECT autorId FROM UsuarioAutor WHERE usuarioId = @usuarioId";
+            command.Parameters.AddWithValue("@usuarioId", usuarioId);
+
+            using var reader = await command.ExecuteReaderAsync();
+
+            if(await reader.ReadAsync())
+            {
+                autorID = reader.GetInt32(0);
+            }
+
+            return autorID;
+        }
+
     }
 }
