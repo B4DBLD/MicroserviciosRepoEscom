@@ -68,6 +68,30 @@ namespace MicroserviciosRepoEscom.Controllers
             }
         }
 
+        // GET: api/Materiales/PorCreador
+        [HttpGet("PorCreador/{userId}")]
+        public async Task<ActionResult<IEnumerable<Material>>> GetMaterialesPorCreador(int userId)
+        {
+            try
+            {
+                if (userId != null)
+                {
+                    int? userRol = await _materialesRepository.GetUserRol(userId);
+                    var materiales = await _materialesRepository.GetMaterialPorCreador(userId);
+                    return Ok(ApiResponse<IEnumerable<Material>>.Success(materiales));
+                }
+                else
+                {
+                    return BadRequest(ApiResponse.Failure("El ID de usuario no puede ser nulo"));
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error al obtener los materiales creados por el usuario con ID {userId}");
+                return StatusCode(500, ApiResponse.Failure("Error interno del servidor.", new List<string> { ex.Message }));
+            }
+        }
+
         // GET: api/Materiales/Visualizar/5
         [HttpGet("Visualizar/{id}")]
         public async Task<ActionResult<MaterialConRelacionesDTO>> GetMaterialStream(int id, int? userId = null)
@@ -149,7 +173,11 @@ namespace MicroserviciosRepoEscom.Controllers
                 {
                     int? userRol = await _materialesRepository.GetUserRol(userId);
                     var material = await _materialesRepository.GetMaterialById(id, userRol);
-                    await _historialRepository.RegistrarConsulta(userId, material.Id);
+                    if (material.Disponible == 1)
+                    {
+                        await _historialRepository.RegistrarConsulta(userId, material.Id);
+                    }
+                    
 
                     if(material == null)
                     {
@@ -270,7 +298,7 @@ namespace MicroserviciosRepoEscom.Controllers
 
         // POST: api/Materiales/Upload
         [HttpPost("Upload")]
-        public async Task<ActionResult<MaterialConRelacionesDTO>> UploadMaterial([FromForm] string datosJson, IFormFile archivo = null, [FromForm] string Url = null)
+        public async Task<ActionResult<MaterialConRelacionesDTO>> UploadMaterial(int userId, [FromForm] string datosJson, IFormFile archivo = null, [FromForm] string Url = null)
         {
             string fileName = string.Empty;
             string tipoArchivo = string.Empty;
@@ -405,7 +433,8 @@ namespace MicroserviciosRepoEscom.Controllers
                 {
                     Nombre = datos.NombreMaterial,
                     AutorIds = autorIds,
-                    TagIds = datos.TagIds
+                    TagIds = datos.TagIds,
+                    CreadoPor = userId 
                 };
 
                 var materialId = await _materialesRepository.CreateMaterial(createDTO, fileName, tipoArchivo);
@@ -443,6 +472,39 @@ namespace MicroserviciosRepoEscom.Controllers
                 return StatusCode(500, ApiResponse.Failure("Error interno del servidor.", new List<string> { ex.Message }));
             }
         }
+
+        [HttpPut("disponibilidad")]
+        public async Task<ActionResult> CambiarDisponibilidad(int materialId, [FromBody] DisponibilidadDTO disponibilidadDTO)
+        {
+            try
+            {
+
+                // Cambiar disponibilidad
+                bool result = await _materialesRepository.CambiarDisponibilidad(materialId, disponibilidadDTO.Disponible);
+
+                if (result)
+                {
+                    string estadoTexto = disponibilidadDTO.Disponible == 1 ? "Habilitado" : "Deshabilitado";
+
+                    return Ok(ApiResponse<object>.Success(new
+                    {
+                        MaterialId = materialId,
+                        StatusDTO = disponibilidadDTO.Disponible
+                    },
+                        $"Material {estadoTexto} exitosamente"));
+                }
+                else
+                {
+                    return StatusCode(500, ApiResponse.Failure("Error al cambiar el status del material"));
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error al cambiar el status del material {materialId}");
+                return StatusCode(500, ApiResponse.Failure($"Error interno del servidor: {ex.Message}"));
+            }
+        }
+
 
         private bool IsValidEmail(string email)
         {

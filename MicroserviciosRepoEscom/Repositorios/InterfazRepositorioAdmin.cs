@@ -2,6 +2,6 @@
 {
     public interface InterfazRepositorioAdmin
     {
-        Task<bool> CambiarDisponibilidad(int id, int disponible);
+        Task<bool> CambiarStatus(int materialId, int status);
     }
 }

@@ -2,6 +2,7 @@
 using MicroserviciosRepoEscom.Controllers;
 using MicroserviciosRepoEscom.Models;
 using Microsoft.Data.Sqlite;
+using System;
 using System.Text;
 
 namespace MicroserviciosRepoEscom.Repositorios
@@ -24,6 +25,7 @@ namespace MicroserviciosRepoEscom.Repositorios
 
         public async Task<IEnumerable<Material>> GetAllMateriales(int? userRol = null)
         {
+            string url;
             using var connection = new SqliteConnection(_dbConfig.ConnectionString);
             await connection.OpenAsync();
 
@@ -34,7 +36,7 @@ namespace MicroserviciosRepoEscom.Repositorios
 
             using var command = connection.CreateCommand();
             command.CommandText = $@"
-                SELECT id, nombre, url, tipoArchivo, disponible, fechaCreacion, fechaActualizacion 
+                SELECT id, nombre, url, tipoArchivo, disponible, status, fechaCreacion, fechaActualizacion 
                 FROM Material 
                 {whereClause}"; // Solo materiales habilitados
 
@@ -43,6 +45,14 @@ namespace MicroserviciosRepoEscom.Repositorios
 
             while(await reader.ReadAsync())
             {
+                if (reader.GetString(3) == "PDF")
+                {
+                    url = "";
+                }
+                else
+                {
+                    url = reader.GetString(2);
+                }
                 materiales.Add(new Material
                 {
                     Id = reader.GetInt32(0),
@@ -50,8 +60,9 @@ namespace MicroserviciosRepoEscom.Repositorios
                     Url = reader.GetString(2),
                     TipoArchivo = reader.GetString(3),
                     Disponible = reader.GetInt32(4),
-                    FechaCreacion = reader.GetString(5),
-                    FechaActualizacion = reader.GetString(6)
+                    Status = reader.GetInt32(5),
+                    FechaCreacion = reader.GetString(6),
+                    FechaActualizacion = reader.GetString(7)
                 });
             }
 
@@ -73,7 +84,7 @@ namespace MicroserviciosRepoEscom.Repositorios
             // Obtener el material
             using var command = connection.CreateCommand();
             command.CommandText = $@"
-                SELECT id, nombre, url, tipoArchivo, disponible, fechaCreacion, fechaActualizacion 
+                SELECT id, nombre, url, tipoArchivo, disponible, status, fechaCreacion, fechaActualizacion 
                 FROM Material 
                 {whereClause}"; // Solo materiales habilitados
             command.Parameters.AddWithValue("@id", id);
@@ -93,8 +104,9 @@ namespace MicroserviciosRepoEscom.Repositorios
                 Url = reader.GetString(2),
                 TipoArchivo = reader.GetString(3),
                 Disponible = reader.GetInt32(4),
-                FechaCreacion = reader.GetString(5),
-                FechaActualizacion = reader.GetString(6),
+                Status = reader.GetInt32(5),
+                FechaCreacion = reader.GetString(6),
+                FechaActualizacion = reader.GetString(7),
                 Autores = new List<Autor>(),
                 Tags = new List<Tag>()
             };
@@ -172,6 +184,7 @@ namespace MicroserviciosRepoEscom.Repositorios
                 }
                 
                 int disponible = (tipoArchivo == "PDF" || tipoArchivo == "LINK") ? 1 : 0;
+                int status = (tipoArchivo == "PDF" || tipoArchivo == "LINK") ? 1 : 0;
 
                 // Crear el material
                 int materialId;
@@ -179,14 +192,16 @@ namespace MicroserviciosRepoEscom.Repositorios
                 {
                     command.Transaction = transaction;
                     command.CommandText = @"
-                    INSERT INTO Material (nombre, url, tipoArchivo, disponible, fechaCreacion, fechaActualizacion)
-                    VALUES (@nombre, @url, @tipoArchivo, @disponible, datetime('now', 'utc'), datetime('now', 'utc'));
+                    INSERT INTO Material (nombre, url, tipoArchivo, disponible, status, creadoPor, fechaCreacion, fechaActualizacion)
+                    VALUES (@nombre, @url, @tipoArchivo, @disponible, @status, @creadoPor, datetime('now', 'utc'), datetime('now', 'utc'));
                     SELECT last_insert_rowid();";
 
                     command.Parameters.AddWithValue("@nombre", material.Nombre);
                     command.Parameters.AddWithValue("@url", rutaAcceso);
                     command.Parameters.AddWithValue("@tipoArchivo", tipoArchivo);
-                    command.Parameters.AddWithValue("@disponible", disponible); 
+                    command.Parameters.AddWithValue("@disponible", disponible);
+                    command.Parameters.AddWithValue("@status", status);
+                    command.Parameters.AddWithValue("@creadoPor", material.CreadoPor);
 
                     materialId = (int)(long)await command.ExecuteScalarAsync();
                 }
@@ -737,6 +752,69 @@ namespace MicroserviciosRepoEscom.Repositorios
             }
 
             return materiales;
+        }
+
+        public async Task<IEnumerable<Material>> GetMaterialPorCreador(int userId)
+        {
+            string url;
+            using var connection = new SqliteConnection(_dbConfig.ConnectionString);
+            await connection.OpenAsync();
+
+            using var command = connection.CreateCommand();
+            command.CommandText = @"
+                SELECT id, nombre, url, tipoArchivo, disponible, status, creadoPor, fechaCreacion, fechaActualizacion 
+                FROM Material 
+                WHERE creadoPor = @userId
+                ORDER BY fechaCreacion DESC";
+            command.Parameters.AddWithValue("@userId", userId);
+
+            using var reader = await command.ExecuteReaderAsync();
+            var materiales = new List<Material>();
+
+            while (await reader.ReadAsync())
+            {
+                if (reader.GetString(3) == "PDF")
+                {
+                    url = "";
+                }
+                else
+                {
+                    url = reader.GetString(2);
+                }
+                materiales.Add(new Material
+                {
+                    Id = reader.GetInt32(0),
+                    Nombre = reader.GetString(1),
+                    Url = url,
+                    TipoArchivo = reader.GetString(3),
+                    Disponible = reader.GetInt32(4),
+                    Status = reader.GetInt32(5),
+                    CreadoPor = reader.GetInt32(6),
+                    FechaCreacion = reader.GetString(7),
+                    FechaActualizacion = reader.GetString(8)
+                });
+            }
+
+            return materiales;
+
+        }
+
+        public async Task<bool> CambiarDisponibilidad(int materialId, int disponible)
+        {
+            using var connection = new SqliteConnection(_dbConfig.ConnectionString);
+            await connection.OpenAsync();
+
+            using var command = connection.CreateCommand();
+            command.CommandText = @"
+                UPDATE Material 
+                SET disponible = @disponible, fechaActualizacion = datetime('now', 'utc')
+                WHERE id = @id";
+
+            command.Parameters.AddWithValue("@id", materialId);
+            command.Parameters.AddWithValue("@disponible", disponible);
+
+            int rowsAffected = await command.ExecuteNonQueryAsync();
+            return rowsAffected > 0;
         }
 
         public async Task<int?> GetUserRol(int? id = null)

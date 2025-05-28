@@ -21,6 +21,7 @@ namespace MicroserviciosRepoEscom.Models
 
         // Nombres de tags para crear o buscar
         public string? NombresTags { get; set; }
+        public int? CreadoPor { get; set; }
 
     }
 }

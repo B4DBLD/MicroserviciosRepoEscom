@@ -6,9 +6,12 @@
         public string Nombre { get; set; } = string.Empty;
         public string Url { get; set; } = string.Empty;
         public string TipoArchivo { get; set; } = string.Empty;
+        public int Disponible { get; set; } = 0;
+        public int Status { get; set; } = 0;
+        public int? CreadoPor { get; set; }
         public string FechaCreacion { get; set; } = string.Empty;
         public string FechaActualizacion { get; set; } = string.Empty;
-        public int Disponible { get; set; } = 0;
+        
         public List<Autor> Autores { get; set; } = new List<Autor>();
         public List<Tag> Tags { get; set; } = new List<Tag>();
     }

@@ -9,12 +9,7 @@ namespace MicroserviciosRepoEscom.Controllers
     [ApiController]
     public class AdminController : ControllerBase
     {
-        private readonly InterfazRepositorioMateriales _materialesRepository;
-        private readonly InterfazRepositorioAutores _autoresRepository;
-        private readonly InterfazRepositorioTags _tagsRepository;
-        private readonly IFileService _fileService;
         private readonly InterfazRepositorioAdmin _adminRepository;
-        private readonly string _uploadsFolder;
         private readonly ILogger<MaterialesController> _logger;
 
         public AdminController(
@@ -25,40 +20,36 @@ namespace MicroserviciosRepoEscom.Controllers
             InterfazRepositorioAdmin adminRepository,
             ILogger<MaterialesController> logger)
         {
-            _materialesRepository = materialesRepository;
-            _autoresRepository = autoresRepository;
-            _tagsRepository = tagsRepository;
-            _fileService = fileService;
             _adminRepository = adminRepository;
             _logger = logger;
         }
 
-        [HttpPut("{id}/disponibilidad")]
-        public async Task<ActionResult> CambiarDisponibilidad(int id, [FromBody] DisponibilidadDTO dto)
+        [HttpPut("status")]
+        public async Task<ActionResult> CambiarStatus(int materialId, [FromBody] StatusDTO Statusdto)
         {
             try
             {
 
                 // Cambiar disponibilidad
-                bool result = await _adminRepository.CambiarDisponibilidad(id, dto.Disponible);
+                bool result = await _adminRepository.CambiarStatus(materialId, Statusdto.Status);
 
                 if(result)
                 {
-                    string estadoTexto = dto.Disponible == 1 ? "habilitado" : "deshabilitado";
+                    string estadoTexto = Statusdto.Status == 1 ? "Revisado" : "Pendiente";
 
                     return Ok(ApiResponse<object>.Success(new 
-                        { MaterialId = id, 
-                          Disponible = dto.Disponible}, 
+                        { MaterialId = materialId, 
+                          StatusDTO = Statusdto.Status}, 
                         $"Material {estadoTexto} exitosamente"));
                 }
                 else
                 {
-                    return StatusCode(500, ApiResponse.Failure("Error al cambiar la disponibilidad del material"));
+                    return StatusCode(500, ApiResponse.Failure("Error al cambiar el status del material"));
                 }
             }
             catch(Exception ex)
             {
-                _logger.LogError(ex, $"Error al cambiar disponibilidad del material {id}");
+                _logger.LogError(ex, $"Error al cambiar el status del material {materialId}");
                 return StatusCode(500, ApiResponse.Failure($"Error interno del servidor: {ex.Message}"));
             }
         }
