@@ -83,7 +83,7 @@ var app = builder.Build();
 // Configure the HTTP request pipeline.
 
 
-app.Urls.Add("http://10.0.0.4:8081");
+//app.Urls.Add("http://10.0.0.4:8081");
 app.UseSwagger();
 app.UseSwaggerUI();
 

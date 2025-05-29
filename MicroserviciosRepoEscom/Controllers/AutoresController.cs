@@ -118,6 +118,26 @@ namespace MicroserviciosRepoEscom.Controllers
             }
         }
 
+        [HttpDelete("DeleteRelacion")]
+        public async Task<ActionResult<bool>> DeleteRelacion(int? userId, int? autorId)
+        {
+            try
+            {
+                var relacion = await _autoresRepository.EliminarRelacion(userId, autorId);
+                if (relacion == false)
+                {
+                    return Conflict(ApiResponse.Failure("No se pudo eliminar la relación"));
+                }
+                return Ok(ApiResponse.Success("Se elimino la relación exitosamente"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error al eliminar la relación entre IDs");
+                return StatusCode(500, ApiResponse.Failure("Error interno del servidor.", new List<string> { ex.Message }));
+            }
+        }
+
+
         // POST: api/Autores
         [HttpPost]
         public async Task<ActionResult<Autor>> CreateAutor(AutorCreateDTO autorDTO)

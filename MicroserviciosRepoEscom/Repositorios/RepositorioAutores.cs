@@ -271,7 +271,7 @@ namespace MicroserviciosRepoEscom.Repositorios
 
             using var reader = await command.ExecuteReaderAsync();
 
-            if (await reader.ReadAsync())
+            if(await reader.ReadAsync())
             {
                 return new RelacionDTO
                 {
@@ -282,5 +282,41 @@ namespace MicroserviciosRepoEscom.Repositorios
             return null;
         }
 
+        public async Task<bool> EliminarRelacion(int? usuarioId, int? autorId)
+        {
+            string whereClause = string.Empty;
+            if(usuarioId == null || autorId == null)
+            {
+                _logger.LogWarning("Se debe proporcional al menos un valor");
+                return false;
+            }
+
+            using var connection = new SqliteConnection(_dbConfig.ConnectionString);
+            await connection.OpenAsync();
+            using var command = connection.CreateCommand();
+            command.CommandText = @$"
+                DELETE FROM UsuarioAutor 
+                {whereClause}";
+
+            if(usuarioId.HasValue && autorId.HasValue)
+            {
+                whereClause = "usuarioId = @usuarioId AND autorId = @autorId";
+                command.Parameters.AddWithValue("@usuarioId", usuarioId.Value);
+                command.Parameters.AddWithValue("@autorId", autorId.Value);
+            }
+            else if(usuarioId.HasValue)
+            {
+                whereClause = "usuarioId = @usuarioId";
+                command.Parameters.AddWithValue("@usuarioId", usuarioId.Value);
+            }
+            else if(autorId.HasValue)
+            {
+                whereClause = "autorId = @autorId";
+                command.Parameters.AddWithValue("@autorId", autorId.Value);
+            }
+            int rowsAffected = await command.ExecuteNonQueryAsync();
+            return rowsAffected > 0;
+
+        }
     }
 }

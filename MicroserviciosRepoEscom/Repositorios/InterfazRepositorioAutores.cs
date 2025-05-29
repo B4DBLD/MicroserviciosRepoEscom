@@ -13,5 +13,6 @@ namespace MicroserviciosRepoEscom.Repositorios
         Task<bool> DeleteAutor(int id);
         Task<bool> CrearRelacion(int usuarioId, int autorId);
         Task<RelacionDTO> GetRelacion(int usuarioId);
+        Task<bool> EliminarRelacion(int? usuarioId, int? autorId);
     }
 }
