@@ -113,9 +113,9 @@ namespace MicroserviciosRepoEscom.Repositorios
 
             using var command = connection.CreateCommand();
             command.CommandText = @"
-        SELECT id, nombre, apellido, email, fechaCreacion, fechaActualizacion 
-        FROM Autor 
-        WHERE nombre = @nombre AND apellido = @apellido";
+                SELECT id, nombre, apellido, email, fechaCreacion, fechaActualizacion 
+                FROM Autor 
+                WHERE nombre = @nombre AND apellido = @apellido";
             command.Parameters.AddWithValue("@nombre", nombre);
             command.Parameters.AddWithValue("@apellido", apellido);
 
@@ -260,9 +260,8 @@ namespace MicroserviciosRepoEscom.Repositorios
 
         }
 
-        public async Task<int> GetRelacion(int usuarioId)
+        public async Task<RelacionDTO> GetRelacion(int usuarioId)
         {
-            int autorID = 0;
             using var connection = new SqliteConnection(_dbConfig.ConnectionString);
             await connection.OpenAsync();
 
@@ -272,12 +271,15 @@ namespace MicroserviciosRepoEscom.Repositorios
 
             using var reader = await command.ExecuteReaderAsync();
 
-            if(await reader.ReadAsync())
+            if (await reader.ReadAsync())
             {
-                autorID = reader.GetInt32(0);
+                return new RelacionDTO
+                {
+                    id = reader.GetInt32(0)
+                };
             }
 
-            return autorID;
+            return null;
         }
 
     }

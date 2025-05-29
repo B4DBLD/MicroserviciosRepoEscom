@@ -54,25 +54,66 @@ namespace MicroserviciosRepoEscom.Controllers
                 return StatusCode(500, ApiResponse.Failure("Error interno del servidor.", new List<string> { ex.Message }));
             }
         }
-
-        // GET: api/Autores/5
-        [HttpGet("Relacion/{id}")]
-        public async Task<ActionResult<int>> GetRelacion(int id)
+        // GET: api/Autores/{email}
+        [HttpGet("email/{email}")]
+        public async Task<ActionResult<Autor>> GetAutorByEmail(string email)
         {
             try
             {
-                var autor = await _autoresRepository.GetAutorById(id);
+                var autor = await _autoresRepository.GetAutorByEmail(email);
 
-                if(autor == null)
+                if (autor == null)
                 {
-                    return NotFound();
+                    return NotFound(ApiResponse.Failure("Autor no encontrado"));
                 }
 
                 return Ok(ApiResponse<Autor>.Success(autor));
             }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error al obtener el autor con Email {email}");
+                return StatusCode(500, ApiResponse.Failure("Error interno del servidor.", new List<string> { ex.Message }));
+            }
+        }
+
+        [HttpGet("GetRelacion/{userId}")]
+        public async Task<ActionResult<RelacionDTO>> GetRelacion(int userId)
+        {
+            try
+            {
+                var autorID = await _autoresRepository.GetRelacion(userId);
+
+                if(autorID == null)
+                {
+                    return NotFound(ApiResponse.Failure("Este usuario no cuenta con una ID de autor"));
+                }
+
+                return Ok(ApiResponse<RelacionDTO>.Success(autorID));
+            }
             catch(Exception ex)
             {
-                _logger.LogError(ex, $"Error al obtener el autor con ID {id}");
+                _logger.LogError(ex, $"Error al obtener el ID de autor con el ID de usuario: {userId}");
+                return StatusCode(500, ApiResponse.Failure("Error interno del servidor.", new List<string> { ex.Message }));
+            }
+        }
+
+        [HttpGet("CreateRelacion/{userID}")]
+        public async Task<ActionResult<bool>> CreateRelacion(int userID, int autorID)
+        {
+            try
+            {
+                var relacion = await _autoresRepository.CrearRelacion(userID, autorID);
+
+                if (relacion == false)
+                {
+                    return Conflict(ApiResponse.Failure("No se pudo crear la relación"));
+                }
+
+                return Ok(ApiResponse.Success("Se creo la relación exitosamente"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error al crear la relación entre IDs");
                 return StatusCode(500, ApiResponse.Failure("Error interno del servidor.", new List<string> { ex.Message }));
             }
         }
