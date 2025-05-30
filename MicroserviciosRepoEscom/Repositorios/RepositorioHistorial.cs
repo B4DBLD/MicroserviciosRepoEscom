@@ -140,7 +140,7 @@ namespace MicroserviciosRepoEscom.Repositorios
                 // Obtener tags
                 using var tagCommand = connection.CreateCommand();
                 tagCommand.CommandText = @"
-                    SELECT t.id, t.name
+                    SELECT t.id, t.nombre
                     FROM Tag t
                     JOIN MaterialTag mt ON t.id = mt.tagId
                     WHERE mt.materialId = @materialId";

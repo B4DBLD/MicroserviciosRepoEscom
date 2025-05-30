@@ -19,7 +19,7 @@ namespace MicroserviciosRepoEscom.Repositorios
             await connection.OpenAsync();
 
             using var command = connection.CreateCommand();
-            command.CommandText = "SELECT id, name FROM Tag";
+            command.CommandText = "SELECT id, nombre FROM Tag";
 
             using var reader = await command.ExecuteReaderAsync();
             var tags = new List<Tag>();
@@ -42,7 +42,7 @@ namespace MicroserviciosRepoEscom.Repositorios
             await connection.OpenAsync();
 
             using var command = connection.CreateCommand();
-            command.CommandText = "SELECT id, name FROM Tag WHERE id = @id";
+            command.CommandText = "SELECT id, nombre FROM Tag WHERE id = @id";
             command.Parameters.AddWithValue("@id", id);
 
             using var reader = await command.ExecuteReaderAsync();
@@ -66,11 +66,11 @@ namespace MicroserviciosRepoEscom.Repositorios
 
             using var command = connection.CreateCommand();
             command.CommandText = @"
-                INSERT INTO Tag (name)
-                VALUES (@name);
+                INSERT INTO Tag (nombre)
+                VALUES (@nombre);
                 SELECT last_insert_rowid();";
 
-            command.Parameters.AddWithValue("@name", tag.Nombre);
+            command.Parameters.AddWithValue("@nombre", tag.Nombre);
 
             long newId = (long)await command.ExecuteScalarAsync();
             return (int)newId;
@@ -82,9 +82,9 @@ namespace MicroserviciosRepoEscom.Repositorios
             await connection.OpenAsync();
 
             using var command = connection.CreateCommand();
-            command.CommandText = "UPDATE Tag SET name = @name WHERE id = @id";
+            command.CommandText = "UPDATE Tag SET nombre = @nombre WHERE id = @id";
             command.Parameters.AddWithValue("@id", id);
-            command.Parameters.AddWithValue("@name", tag.Nombre);
+            command.Parameters.AddWithValue("@nombre", tag.Nombre);
 
             int rowsAffected = await command.ExecuteNonQueryAsync();
             return rowsAffected > 0;
@@ -96,8 +96,8 @@ namespace MicroserviciosRepoEscom.Repositorios
             await connection.OpenAsync();
 
             using var command = connection.CreateCommand();
-            command.CommandText = "SELECT id, name FROM Tag WHERE name = @name";
-            command.Parameters.AddWithValue("@name", nombre);
+            command.CommandText = "SELECT id, nombre FROM Tag WHERE nombre = @nombre";
+            command.Parameters.AddWithValue("@nombre", nombre);
 
             using var reader = await command.ExecuteReaderAsync();
 

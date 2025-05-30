@@ -10,6 +10,7 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace MicroserviciosRepoEscom.Controllers
 {
@@ -173,23 +174,27 @@ namespace MicroserviciosRepoEscom.Controllers
                 {
                     int? userRol = await _materialesRepository.GetUserRol(userId);
                     var material = await _materialesRepository.GetMaterialById(id, userRol);
-                    if (material.Disponible == 1)
-                    {
-                        await _historialRepository.RegistrarConsulta(userId, material.Id);
-                    }
-                    
+
 
                     if(material == null)
                     {
                         return NotFound(ApiResponse.Failure($"No se encontró el material"));
                     }
-
                     else
                     {
                         // Para ZIP u otros tipos, simplemente devolver el material tal cual
                         // Ya incluye rutaAcceso con la URL del servicio Docker
+                        if(material.Disponible == 1)
+                        {
+                            await _historialRepository.RegistrarConsulta(userId, material.Id);
+                        }
                         return Ok(ApiResponse<MaterialConRelacionesDTO>.Success(material));
                     }
+
+                    
+                    
+
+                    
                 }else
                 {
                     return BadRequest(ApiResponse.Failure("El ID de usuario no puede ser nulo"));
@@ -298,7 +303,7 @@ namespace MicroserviciosRepoEscom.Controllers
 
         // POST: api/Materiales/Upload
         [HttpPost("Upload")]
-        public async Task<ActionResult<MaterialConRelacionesDTO>> UploadMaterial(int userId, [FromForm] string datosJson, IFormFile archivo = null, [FromForm] string Url = null)
+        public async Task<ActionResult<MaterialConRelacionesDTO>> UploadMaterial(int userId, [FromForm] string? datosJson = null, IFormFile? archivo = null, [FromForm] string? Url = null)
         {
             string fileName = string.Empty;
             string tipoArchivo = string.Empty;
@@ -536,28 +541,94 @@ namespace MicroserviciosRepoEscom.Controllers
 
         // PUT: api/Materiales/5
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateMaterial(int id, MaterialUpdateDTO materialDTO, int userID)
+        public async Task<IActionResult> UpdateMaterial(int id, [FromForm] string? datosJson = null, IFormFile? nuevoArchivo = null, [FromForm] string? nuevaUrl = null)
         {
             try
             {
+                string? nuevaRutaArchivo = null;
+                string? nuevoTipoArchivo = null;
+                MaterialUpdateDTO materialDTO = new MaterialUpdateDTO();
                 // Verificar que el material exista
                 var existingMaterial = await _materialesRepository.GetMaterialById(id);
                 if(existingMaterial == null)
                 {
-                    return NotFound($"No se encontró el material con ID {id}");
+                    return NotFound(ApiResponse.Failure($"No se encontró el material con ID {id}"));
                 }
 
-                // Verificar que los autores existan si se proporcionaron
-                if(materialDTO.Autores != null)
+                datosJson = Strings.Replace(datosJson, "'", "");
+
+                if(datosJson == null || datosJson.Length == 0)
                 {
-                    foreach(var autorId in materialDTO.Autores)
+                    return BadRequest(ApiResponse.Failure("El JSON de datos es requerido"));
+                }
+
+                if(!string.IsNullOrEmpty(datosJson) && datosJson != "string")
+                {
+                    try
                     {
-                        var autor = await _autoresRepository.GetAutorById(autorId);
-                        if(autor == null)
-                        {
-                            return BadRequest(ApiResponse.Failure($"No existe un autor con ID {autorId}"));
-                        }
+                        materialDTO = JsonSerializer.Deserialize<MaterialUpdateDTO>(datosJson,
+                            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
                     }
+                    catch(Exception ex)
+                    {
+                        return BadRequest(ApiResponse.Failure($"Error al procesar el JSON: {ex.Message}"));
+                    }
+                }
+
+                if(nuevoArchivo != null && !string.IsNullOrEmpty(nuevaUrl) && nuevaUrl != "string")
+                {
+                    return BadRequest(ApiResponse.Failure("No se puede proporcionar un archivo y una URL al mismo tiempo"));
+                }
+
+                if(nuevoArchivo != null)
+                {
+                    if(nuevoArchivo.Length == 0)
+                    {
+                        return BadRequest(ApiResponse.Failure("El archivo está vacío"));
+                    }
+
+                    // Validar extensión del archivo
+                    var fileExtension = Path.GetExtension(nuevoArchivo.FileName).ToLowerInvariant();
+                    if(fileExtension != ".pdf" && fileExtension != ".zip")
+                    {
+                        return BadRequest(ApiResponse.Failure("Tipo de archivo no permitido. Los formatos aceptados son: PDF y ZIP."));
+                    }
+
+                    nuevoTipoArchivo = fileExtension == ".pdf" ? "PDF" : "ZIP";
+
+                    try
+                    {
+                        // Eliminar archivo anterior si existe
+                        if(!string.IsNullOrEmpty(existingMaterial.Url) && existingMaterial.TipoArchivo != "LINK")
+                        {
+                            await _fileService.DeleteFile(existingMaterial.Url);
+                        }
+
+                        // Guardar nuevo archivo
+                        nuevaRutaArchivo = await _fileService.SaveFile(nuevoArchivo);
+                    }
+                    catch(Exception ex)
+                    {
+                        return StatusCode(500, ApiResponse.Failure($"Error al procesar el archivo: {ex.Message}"));
+                    }
+                }
+                // Procesar nueva URL
+                else if(!string.IsNullOrEmpty(nuevaUrl) && nuevaUrl != "string")
+                {
+                    if(!Uri.TryCreate(nuevaUrl, UriKind.Absolute, out Uri uriResult) ||
+                        (uriResult.Scheme != Uri.UriSchemeHttp && uriResult.Scheme != Uri.UriSchemeHttps))
+                    {
+                        return BadRequest(ApiResponse.Failure("La URL proporcionada no es válida"));
+                    }
+
+                    // Eliminar archivo anterior si existe
+                    if(!string.IsNullOrEmpty(existingMaterial.Url) && existingMaterial.TipoArchivo != "LINK")
+                    {
+                        await _fileService.DeleteFile(existingMaterial.Url);
+                    }
+
+                    nuevaRutaArchivo = nuevaUrl;
+                    nuevoTipoArchivo = "LINK";
                 }
 
                 // Verificar que los tags existan si se proporcionaron
@@ -573,12 +644,44 @@ namespace MicroserviciosRepoEscom.Controllers
                     }
                 }
 
+                List<int> autorIds = new List<int>();
+                foreach(var autor in materialDTO.Autores)
+                {
+                    // Validar que el email es válido
+                    if(string.IsNullOrEmpty(autor.Email) || !IsValidEmail(autor.Email))
+                    {
+                        return BadRequest(ApiResponse.Failure($"El email '{autor.Email}' no es válido"));
+                    }
+
+                    // Buscar por email
+                    var existingAutor = await _autoresRepository.GetAutorByEmail(autor.Email);
+                    if(existingAutor == null)
+                    {
+                        // Crear nuevo autor
+                        var nuevoAutor = new Autor
+                        {
+                            Nombre = autor.Nombre,
+                            ApellidoP = autor.ApellidoP,
+                            ApellidoM = autor.ApellidoM,
+                            Email = autor.Email
+                        };
+
+                        int autorId = await _autoresRepository.CreateAutor(nuevoAutor);
+                        autorIds.Add(autorId);
+                    }
+                    else
+                    {
+                        // Usar autor existente
+                        autorIds.Add(existingAutor.Id);
+                    }
+                }
+
                 // Ignorar valores por defecto o vacíos
                 var updateDTO = new MaterialUpdateDTO
                 {
                     // Solo pasar el nombre si no es el valor por defecto ("string") y no está vacío
-                    Nombre = (materialDTO.Nombre != "string" && !string.IsNullOrEmpty(materialDTO.Nombre))
-                        ? materialDTO.Nombre : null,
+                    NombreMaterial = (materialDTO.NombreMaterial != "string" && !string.IsNullOrEmpty(materialDTO.NombreMaterial))
+                        ? materialDTO.NombreMaterial : null,
 
                     // Solo pasar la URL si no es el valor por defecto ("string") y no está vacía
                     Url = (materialDTO.Url != "string" && !string.IsNullOrEmpty(materialDTO.Url))
@@ -590,7 +693,7 @@ namespace MicroserviciosRepoEscom.Controllers
                 };
 
                 // Actualizar el material
-                var result = await _materialesRepository.UpdateMaterial(id, updateDTO);
+                var result = await _materialesRepository.UpdateMaterial(id, updateDTO, nuevoTipoArchivo);
                 if(result)
                 {
                     // Obtener el material actualizado
