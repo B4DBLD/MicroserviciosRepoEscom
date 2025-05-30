@@ -115,7 +115,7 @@ namespace MicroserviciosRepoEscom.Repositorios
             using(var authorCommand = connection.CreateCommand())
             {
                 authorCommand.CommandText = @"
-                    SELECT a.id, a.nombre, a.apellido, a.email, a.fechaCreacion, a.fechaActualizacion 
+                    SELECT a.id, a.nombre, a.apellidoP, a.apellidoM, a.email, a.fechaCreacion, a.fechaActualizacion 
                     FROM Autor a
                     JOIN AutorMaterial am ON a.id = am.autorId
                     WHERE am.materialId = @materialId";
@@ -129,10 +129,11 @@ namespace MicroserviciosRepoEscom.Repositorios
                     {
                         Id = authorReader.GetInt32(0),
                         Nombre = authorReader.GetString(1),
-                        Apellido = authorReader.GetString(2),
-                        Email = authorReader.GetString(3),
-                        FechaCreacion = authorReader.GetString(4),
-                        FechaActualizacion = authorReader.GetString(5)
+                        ApellidoP = authorReader.GetString(2),
+                        ApellidoM = reader.IsDBNull(3) ? null : reader.GetString(3), // Manejo de apellidoM opcional
+                        Email = authorReader.GetString(4),
+                        FechaCreacion = authorReader.GetString(5),
+                        FechaActualizacion = authorReader.GetString(6)
                     });
                 }
             }
@@ -665,14 +666,26 @@ namespace MicroserviciosRepoEscom.Repositorios
             // 3. Condición por autor
             if (hasAutorFilter)
             {
-                string[] autorTerms = busqueda.AutorNombre.Split(' ', 2);
+                string[] autorTerms = busqueda.AutorNombre.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
                 if (autorTerms.Length >= 2)
                 {
-                    whereConditions.Add("(a.nombre LIKE @autorNombre AND a.apellido LIKE @autorApellido)");
+                    // Múltiples palabras: buscar combinaciones flexibles
+                    var autorConditions = new List<string>();
+
+                    for (int i = 0; i < autorTerms.Length; i++)
+                    {
+                        autorConditions.Add($"a.nombre LIKE @autorTerm{i}");
+                        autorConditions.Add($"a.apellidoP LIKE @autorTerm{i}");
+                        autorConditions.Add($"a.apellidoM LIKE @autorTerm{i}");
+                    }
+
+                    whereConditions.Add($"({string.Join(" OR ", autorConditions)})");
                 }
                 else
                 {
-                    whereConditions.Add("(a.nombre LIKE @autorTermino OR a.apellido LIKE @autorTermino)");
+                    // Una palabra: buscar en cualquier campo
+                    whereConditions.Add("(a.nombre LIKE @autorTermino OR a.apellidoPaterno LIKE @autorTermino OR a.apellidoMaterno LIKE @autorTermino)");
                 }
             }
 
@@ -707,11 +720,14 @@ namespace MicroserviciosRepoEscom.Repositorios
 
             if (hasAutorFilter)
             {
-                string[] autorTerms = busqueda.AutorNombre.Split(' ', 2);
+                string[] autorTerms = busqueda.AutorNombre.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
                 if (autorTerms.Length >= 2)
                 {
-                    command.Parameters.AddWithValue("@autorNombre", $"%{autorTerms[0]}%");
-                    command.Parameters.AddWithValue("@autorApellido", $"%{autorTerms[1]}%");
+                    for (int i = 0; i < autorTerms.Length; i++)
+                    {
+                        command.Parameters.AddWithValue($"@autorTerm{i}", $"%{autorTerms[i]}%");
+                    }
                 }
                 else
                 {

@@ -154,7 +154,8 @@ namespace MicroserviciosRepoEscom.Controllers
                 var autor = new Autor
                 {
                     Nombre = autorDTO.Nombre,
-                    Apellido = autorDTO.Apellido,
+                    ApellidoP = autorDTO.ApellidoP,
+                    ApellidoM = autorDTO.ApellidoM,
                     Email = autorDTO.Email
                 };
 
@@ -197,10 +198,13 @@ namespace MicroserviciosRepoEscom.Controllers
                 if(!string.IsNullOrEmpty(autorDTO.Nombre))
                     existingAutor.Nombre = autorDTO.Nombre;
 
-                if(!string.IsNullOrEmpty(autorDTO.Apellido))
-                    existingAutor.Apellido = autorDTO.Apellido;
+                if(!string.IsNullOrEmpty(autorDTO.ApellidoP))
+                    existingAutor.ApellidoP = autorDTO.ApellidoP;
 
-                if(!string.IsNullOrEmpty(autorDTO.Email))
+                if (!string.IsNullOrEmpty(autorDTO.ApellidoM))
+                    existingAutor.ApellidoM = autorDTO.ApellidoM;
+
+                if (!string.IsNullOrEmpty(autorDTO.Email))
                     existingAutor.Email = autorDTO.Email;
 
                 var result = await _autoresRepository.UpdateAutor(id, existingAutor);

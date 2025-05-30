@@ -24,7 +24,7 @@ namespace MicroserviciosRepoEscom.Repositorios
 
             using var command = connection.CreateCommand();
             command.CommandText = @"
-                SELECT id, nombre, apellido, email, fechaCreacion, fechaActualizacion 
+                SELECT id, nombre, apellidoP, apellidoM, email, fechaCreacion, fechaActualizacion 
                 FROM Autor";
 
             using var reader = await command.ExecuteReaderAsync();
@@ -36,10 +36,11 @@ namespace MicroserviciosRepoEscom.Repositorios
                 {
                     Id = reader.GetInt32(0),
                     Nombre = reader.GetString(1),
-                    Apellido = reader.GetString(2),
-                    Email = reader.GetString(3),
-                    FechaCreacion = reader.GetString(4),
-                    FechaActualizacion = reader.GetString(5)
+                    ApellidoP = reader.GetString(2),
+                    ApellidoM = reader.IsDBNull(3) ? null : reader.GetString(3), // Manejo de apellidoM opcional
+                    Email = reader.GetString(4),
+                    FechaCreacion = reader.GetString(5),
+                    FechaActualizacion = reader.GetString(6)
                 });
             }
 
@@ -53,7 +54,7 @@ namespace MicroserviciosRepoEscom.Repositorios
 
             using var command = connection.CreateCommand();
             command.CommandText = @"
-                SELECT id, nombre, apellido, email, fechaCreacion, fechaActualizacion 
+                SELECT id, nombre, apellidoP, apellidoM, email, fechaCreacion, fechaActualizacion 
                 FROM Autor 
                 WHERE id = @id";
             command.Parameters.AddWithValue("@id", id);
@@ -66,10 +67,11 @@ namespace MicroserviciosRepoEscom.Repositorios
                 {
                     Id = reader.GetInt32(0),
                     Nombre = reader.GetString(1),
-                    Apellido = reader.GetString(2),
-                    Email = reader.GetString(3),
-                    FechaCreacion = reader.GetString(4),
-                    FechaActualizacion = reader.GetString(5)
+                    ApellidoP = reader.GetString(2),
+                    ApellidoM = reader.IsDBNull(3) ? null : reader.GetString(3), // Manejo de apellidoM opcional
+                    Email = reader.GetString(4),
+                    FechaCreacion = reader.GetString(5),
+                    FechaActualizacion = reader.GetString(6)
                 };
             }
 
@@ -83,7 +85,7 @@ namespace MicroserviciosRepoEscom.Repositorios
 
             using var command = connection.CreateCommand();
             command.CommandText = @"
-                SELECT id, nombre, apellido, email, fechaCreacion, fechaActualizacion 
+                SELECT id, nombre, apellidoP, apellidoM, email, fechaCreacion, fechaActualizacion 
                 FROM Autor 
                 WHERE email = @email";
             command.Parameters.AddWithValue("@email", email);
@@ -96,28 +98,32 @@ namespace MicroserviciosRepoEscom.Repositorios
                 {
                     Id = reader.GetInt32(0),
                     Nombre = reader.GetString(1),
-                    Apellido = reader.GetString(2),
-                    Email = reader.GetString(3),
-                    FechaCreacion = reader.GetString(4),
-                    FechaActualizacion = reader.GetString(5)
+                    ApellidoP = reader.GetString(2),
+                    ApellidoM = reader.IsDBNull(3) ? null : reader.GetString(3), // Manejo de apellidoM opcional
+                    Email = reader.GetString(4),
+                    FechaCreacion = reader.GetString(5),
+                    FechaActualizacion = reader.GetString(6)
                 };
             }
 
             return null;
         }
 
-        public async Task<Autor?> BuscarAutorPorNombreApellido(string nombre, string apellido)
+        public async Task<Autor?> BuscarAutorPorNombreApellido(string nombre, string apellidoP, string apellidoM)
         {
             using var connection = new SqliteConnection(_dbConfig.ConnectionString);
             await connection.OpenAsync();
 
             using var command = connection.CreateCommand();
             command.CommandText = @"
-                SELECT id, nombre, apellido, email, fechaCreacion, fechaActualizacion 
+                SELECT id, nombre, apellidoP, apellidoM, email, fechaCreacion, fechaActualizacion 
                 FROM Autor 
-                WHERE nombre = @nombre AND apellido = @apellido";
+                WHERE nombre = @nombre 
+                AND apellidoP = @apellidoP
+                AND (apellidoM = @apellidoM OR (@apellidoM IS NULL AND apellidoM IS NULL))";
             command.Parameters.AddWithValue("@nombre", nombre);
-            command.Parameters.AddWithValue("@apellido", apellido);
+            command.Parameters.AddWithValue("@apellidoP", apellidoP);
+            command.Parameters.AddWithValue("@apellidoM", apellidoM ?? (object)DBNull.Value);
 
             using var reader = await command.ExecuteReaderAsync();
 
@@ -127,10 +133,11 @@ namespace MicroserviciosRepoEscom.Repositorios
                 {
                     Id = reader.GetInt32(0),
                     Nombre = reader.GetString(1),
-                    Apellido = reader.GetString(2),
-                    Email = reader.GetString(3),
-                    FechaCreacion = reader.GetString(4),
-                    FechaActualizacion = reader.GetString(5)
+                    ApellidoP = reader.GetString(2),
+                    ApellidoM = reader.IsDBNull(3) ? null : reader.GetString(3), // Manejo de apellidoM opcional
+                    Email = reader.GetString(4),
+                    FechaCreacion = reader.GetString(5),
+                    FechaActualizacion = reader.GetString(6)
                 };
             }
 
@@ -144,12 +151,13 @@ namespace MicroserviciosRepoEscom.Repositorios
 
             using var command = connection.CreateCommand();
             command.CommandText = @"
-                INSERT INTO Autor (nombre, apellido, email, fechaCreacion, fechaActualizacion)
-                VALUES (@nombre, @apellido, @email, datetime('now', 'utc'), datetime('now', 'utc'));
+                INSERT INTO Autor (nombre, apellidoP, apellidoM, email, fechaCreacion, fechaActualizacion)
+                VALUES (@nombre, @apellidoP, @apellidoM, @email, datetime('now', 'utc'), datetime('now', 'utc'));
                 SELECT last_insert_rowid();";
 
             command.Parameters.AddWithValue("@nombre", autor.Nombre);
-            command.Parameters.AddWithValue("@apellido", autor.Apellido);
+            command.Parameters.AddWithValue("@apellidoP", autor.ApellidoP);
+            command.Parameters.AddWithValue("@apellidoM", (object)autor.ApellidoM ?? DBNull.Value); // Manejo de apellidoM opcional
             command.Parameters.AddWithValue("@email", autor.Email);
 
             long newId = (long)await command.ExecuteScalarAsync();
@@ -165,14 +173,16 @@ namespace MicroserviciosRepoEscom.Repositorios
             command.CommandText = @"
                 UPDATE Autor 
                 SET nombre = @nombre, 
-                    apellido = @apellido, 
+                    apellidoP = @apellidoP,
+                    apellidoM = @apellidoM,
                     email = @email, 
                     fechaActualizacion = datetime('now', 'utc')
                 WHERE id = @id";
 
             command.Parameters.AddWithValue("@id", id);
             command.Parameters.AddWithValue("@nombre", autor.Nombre);
-            command.Parameters.AddWithValue("@apellido", autor.Apellido);
+            command.Parameters.AddWithValue("@apellidoP", autor.ApellidoP);
+            command.Parameters.AddWithValue("@apellidoM", autor.ApellidoM ?? (object)DBNull.Value); // Manejo de apellidoM opcional
             command.Parameters.AddWithValue("@email", autor.Email);
 
             int rowsAffected = await command.ExecuteNonQueryAsync();

@@ -163,7 +163,7 @@ namespace MicroserviciosRepoEscom.Repositorios
                 // Obtener autores
                 using var autorCommand = connection.CreateCommand();
                 autorCommand.CommandText = @"
-                    SELECT a.id, a.nombre, a.apellido, a.email, a.fechaCreacion, a.fechaActualizacion
+                    SELECT a.id, a.nombre, a.apellidoP, a.apellidoM, a.email, a.fechaCreacion, a.fechaActualizacion
                     FROM Autor a
                     JOIN AutorMaterial am ON a.id = am.autorId
                     WHERE am.materialId = @materialId";
@@ -177,10 +177,11 @@ namespace MicroserviciosRepoEscom.Repositorios
                     {
                         Id = autorReader.GetInt32(0),
                         Nombre = autorReader.GetString(1),
-                        Apellido = autorReader.GetString(2),
-                        Email = autorReader.GetString(3),
-                        FechaCreacion = autorReader.GetString(4),
-                        FechaActualizacion = autorReader.GetString(5)
+                        ApellidoP = autorReader.GetString(2),
+                        ApellidoM = autorReader.IsDBNull(3) ? null : autorReader.GetString(3),
+                        Email = autorReader.GetString(4),
+                        FechaCreacion = autorReader.GetString(5),
+                        FechaActualizacion = autorReader.GetString(6)
                     });
                 }
 

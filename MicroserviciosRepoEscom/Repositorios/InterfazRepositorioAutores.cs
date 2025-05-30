@@ -6,7 +6,7 @@ namespace MicroserviciosRepoEscom.Repositorios
     {
         Task<IEnumerable<Autor>> GetAllAutores();
         Task<Autor?> GetAutorById(int id);
-        Task<Autor?> BuscarAutorPorNombreApellido(string nombre, string apellido);
+        Task<Autor?> BuscarAutorPorNombreApellido(string nombre, string apellidoP, string apellido);
         Task<Autor?> GetAutorByEmail(string email);
         Task<int> CreateAutor(Autor autor);
         Task<bool> UpdateAutor(int id, Autor autor);

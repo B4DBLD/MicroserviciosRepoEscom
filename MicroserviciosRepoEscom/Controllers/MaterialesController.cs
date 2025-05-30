@@ -414,7 +414,8 @@ namespace MicroserviciosRepoEscom.Controllers
                         var nuevoAutor = new Autor
                         {
                             Nombre = autor.Nombre,
-                            Apellido = autor.Apellido,
+                            ApellidoP = autor.ApellidoP,
+                            ApellidoM = autor.ApellidoM,
                             Email = autor.Email
                         };
 
@@ -449,7 +450,8 @@ namespace MicroserviciosRepoEscom.Controllers
                         if(datos.Autores != null && datos.Autores.Count > 0)
                         {
                             var nombresAutores = datos.Autores.Select(autor =>
-                                $"{autor.Nombre} {autor.Apellido}".Trim()
+                                $"{autor.Nombre} {autor.ApellidoP}" +
+                                (string.IsNullOrEmpty(autor.ApellidoM) ? "" : $" {autor.ApellidoM}")
                             ).ToList();
 
                             autorNombre = string.Join(", ", nombresAutores);
