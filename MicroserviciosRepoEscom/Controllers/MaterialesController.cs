@@ -22,6 +22,7 @@ namespace MicroserviciosRepoEscom.Controllers
         private readonly InterfazRepositorioAutores _autoresRepository;
         private readonly InterfazRepositorioTags _tagsRepository;
         private readonly InterfazRepositorioHistorial _historialRepository;
+        public readonly InterfazRepositorioFavoritos _favoritosRepository;
         private readonly IFileService _fileService;
         private readonly IEmailService _emailService;
         private readonly string _uploadsFolder;
@@ -32,6 +33,7 @@ namespace MicroserviciosRepoEscom.Controllers
             InterfazRepositorioAutores autoresRepository,
             InterfazRepositorioTags tagsRepository,
             InterfazRepositorioHistorial historialRepository,
+            InterfazRepositorioFavoritos favoritosRepository,
             IFileService fileService,
             IEmailService emailService,
             ILogger<MaterialesController> logger)
@@ -40,6 +42,7 @@ namespace MicroserviciosRepoEscom.Controllers
             _autoresRepository = autoresRepository;
             _tagsRepository = tagsRepository;
             _historialRepository = historialRepository;
+            _favoritosRepository = favoritosRepository;
             _fileService = fileService;
             _emailService = emailService;
             _logger = logger;
@@ -170,13 +173,22 @@ namespace MicroserviciosRepoEscom.Controllers
         {
             try
             {
-                if(userId != null)
+                if (userId != null)
                 {
                     int? userRol = await _materialesRepository.GetUserRol(userId);
                     var material = await _materialesRepository.GetMaterialById(id, userRol);
+                    var favoritos = await _favoritosRepository.GetUserFavorites(userId);
+                    if (favoritos != null && favoritos.Any(f => f.Id == id))
+                    {
+                        material.Favorito = true;
+                    }
+                    else
+                    {
+                        material.Favorito = false;
+                    }
 
 
-                    if(material == null)
+                    if (material == null)
                     {
                         return NotFound(ApiResponse.Failure($"No se encontró el material"));
                     }
@@ -467,6 +479,7 @@ namespace MicroserviciosRepoEscom.Controllers
                     catch(Exception ex)
                     {
                         _logger.LogError(ex, $"Error al enviar notificación ZIP");
+                        
                         // No afecta la subida del archivo
                     }
                 }
@@ -549,7 +562,7 @@ namespace MicroserviciosRepoEscom.Controllers
                 string? nuevoTipoArchivo = null;
                 MaterialUpdateDTO materialDTO = new MaterialUpdateDTO();
                 // Verificar que el material exista
-                var existingMaterial = await _materialesRepository.GetMaterialById(id);
+                var existingMaterial = await _materialesRepository.GetMaterialById(id, 3);
                 if(existingMaterial == null)
                 {
                     return NotFound(ApiResponse.Failure($"No se encontró el material con ID {id}"));
@@ -643,8 +656,6 @@ namespace MicroserviciosRepoEscom.Controllers
                         }
                     }
                 }
-
-                List<int> autorIds = new List<int>();
                 foreach(var autor in materialDTO.Autores)
                 {
                     // Validar que el email es válido
@@ -667,12 +678,12 @@ namespace MicroserviciosRepoEscom.Controllers
                         };
 
                         int autorId = await _autoresRepository.CreateAutor(nuevoAutor);
-                        autorIds.Add(autorId);
+                        materialDTO.AutoresIds.Add(autorId);
                     }
                     else
                     {
                         // Usar autor existente
-                        autorIds.Add(existingAutor.Id);
+                        materialDTO.AutoresIds.Add(existingAutor.Id);
                     }
                 }
 
@@ -689,15 +700,41 @@ namespace MicroserviciosRepoEscom.Controllers
 
                     // Pasar autores y tags tal cual (null o la lista proporcionada)
                     Autores = materialDTO.Autores,
+                    AutoresIds = materialDTO.AutoresIds,
                     TagIds = materialDTO.TagIds
                 };
 
                 // Actualizar el material
-                var result = await _materialesRepository.UpdateMaterial(id, updateDTO, nuevoTipoArchivo);
+                var result = await _materialesRepository.UpdateMaterial(id, updateDTO, nuevaRutaArchivo,nuevoTipoArchivo);
                 if(result)
                 {
                     // Obtener el material actualizado
-                    var updatedMaterial = await _materialesRepository.GetMaterialById(id);
+                    var updatedMaterial = await _materialesRepository.GetMaterialById(id, 3);
+                    if (nuevoTipoArchivo == "ZIP")
+                    {
+                        try
+                        {
+                            string autorNombre = "Sin autor especificado";
+
+                            if (materialDTO.Autores != null && materialDTO.Autores.Count > 0)
+                            {
+                                var nombresAutores = materialDTO.Autores.Select(autor =>
+                                    $"{autor.Nombre} {autor.ApellidoP}" +
+                                    (string.IsNullOrEmpty(autor.ApellidoM) ? "" : $" {autor.ApellidoM}")
+                                ).ToList();
+
+                                autorNombre = string.Join(", ", nombresAutores);
+                            }
+                            await _emailService.SendEmailAsync(materialDTO.NombreMaterial, autorNombre);
+                            _logger.LogInformation($"Notificación enviada para material ZIP ");
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, $"Error al enviar notificación ZIP");
+
+                            // No afecta la subida del archivo
+                        }
+                    }
                     return Ok(ApiResponse<MaterialConRelacionesDTO>.Success (updatedMaterial, "El material se actualizo correctamente"));
                 }
                 else

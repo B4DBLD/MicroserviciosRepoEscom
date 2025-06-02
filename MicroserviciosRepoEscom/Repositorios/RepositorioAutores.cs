@@ -238,33 +238,75 @@ namespace MicroserviciosRepoEscom.Repositorios
             using var connection = new SqliteConnection(_dbConfig.ConnectionString);
             await connection.OpenAsync();
 
+            using var transaction = connection.BeginTransaction();
+
             try
             {
+                // 1. Verificar si el usuario ya tiene una relación
+                using var checkUserCommand = connection.CreateCommand();
+                checkUserCommand.Transaction = transaction;
+                checkUserCommand.CommandText = "SELECT autorId FROM UsuarioAutor WHERE usuarioId = @usuarioId";
+                checkUserCommand.Parameters.AddWithValue("@usuarioId", usuarioId);
+
+                var existingAutorId = await checkUserCommand.ExecuteScalarAsync();
+                if (existingAutorId != null)
+                {
+                    int currentAutorId = (int)(long)existingAutorId;
+                    if (currentAutorId == autorId)
+                    {
+                        _logger.LogInformation($"Relación ya existe: Usuario {usuarioId} ↔ Autor {autorId}");
+                        transaction.Commit();
+                        return true; // Ya existe la misma relación
+                    }
+                    else
+                    {
+                        _logger.LogWarning($"Usuario {usuarioId} ya tiene relación con Autor {currentAutorId}. No se puede crear nueva relación con Autor {autorId}");
+                        transaction.Rollback();
+                        return false; // Usuario ya tiene otra relación
+                    }
+                }
+
+                // 2. Verificar si el autor ya tiene una relación
+                using var checkAutorCommand = connection.CreateCommand();
+                checkAutorCommand.Transaction = transaction;
+                checkAutorCommand.CommandText = "SELECT usuarioId FROM UsuarioAutor WHERE autorId = @autorId";
+                checkAutorCommand.Parameters.AddWithValue("@autorId", autorId);
+
+                var existingUserId = await checkAutorCommand.ExecuteScalarAsync();
+                if (existingUserId != null)
+                {
+                    int currentUserId = (int)(long)existingUserId;
+                    _logger.LogWarning($"Autor {autorId} ya tiene relación con Usuario {currentUserId}. No se puede crear nueva relación con Usuario {usuarioId}");
+                    transaction.Rollback();
+                    return false; // Autor ya tiene relación
+                }
+
+                // 3. Crear la nueva relación 1:1 (SIN ON CONFLICT)
                 using var command = connection.CreateCommand();
+                command.Transaction = transaction;
                 command.CommandText = @"
-                    INSERT INTO UsuarioAutor (usuarioId, autorId)
-                    VALUES (@usuarioId, @autorId)
-                    ON CONFLICT(usuarioId, autorId) DO NOTHING";
+            INSERT INTO UsuarioAutor (usuarioId, autorId, fechaCreacion)
+            VALUES (@usuarioId, @autorId, datetime('now', 'utc'))";
 
                 command.Parameters.AddWithValue("@usuarioId", usuarioId);
                 command.Parameters.AddWithValue("@autorId", autorId);
 
-                int rowsAffected = await command.ExecuteNonQueryAsync();
+                await command.ExecuteNonQueryAsync();
 
-                if(rowsAffected > 0)
-                {
-                    _logger.LogInformation($"Relación creada: Usuario {usuarioId} - Autor {autorId}");
-                }
-                else
-                {
-                    _logger.LogInformation($"Relación ya existía: Usuario {usuarioId} - Autor {autorId}");
-                }
-
-                return true; // Siempre retorna true porque ON CONFLICT DO NOTHING no falla
+                transaction.Commit();
+                _logger.LogInformation($"✅ Relación 1:1 creada exitosamente: Usuario {usuarioId} ↔ Autor {autorId}");
+                return true;
             }
-            catch(Exception ex)
+            catch (SqliteException ex) when (ex.SqliteErrorCode == 19) // UNIQUE constraint failed
             {
-                _logger.LogError(ex, $"Error al crear relación: Usuario {usuarioId} - Autor {autorId}");
+                transaction.Rollback();
+                _logger.LogWarning($"⚠️ Constraint UNIQUE violado: Usuario {usuarioId} o Autor {autorId} ya tienen una relación existente. Error: {ex.Message}");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                transaction.Rollback();
+                _logger.LogError(ex, $"❌ Error al crear relación 1:1: Usuario {usuarioId} - Autor {autorId}");
                 return false;
             }
 

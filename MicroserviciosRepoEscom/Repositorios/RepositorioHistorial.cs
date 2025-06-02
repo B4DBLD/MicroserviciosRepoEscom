@@ -26,18 +26,43 @@ namespace MicroserviciosRepoEscom.Repositorios
 
             try
             {
-                using var command = connection.CreateCommand();
-                command.CommandText = @"
-                    INSERT INTO UserSearch (userId, materialId, ultimaConsulta)
-                    VALUES (@userId, @materialId, datetime('now', 'utc'))
-                    ON CONFLICT(userId, materialId) 
-                    DO UPDATE SET ultimaConsulta = datetime('now', 'utc')";
+                // Verificar si existe el registro
+                using var checkCommand = connection.CreateCommand();
+                checkCommand.CommandText = @"
+            SELECT COUNT(*) FROM UserSearch 
+            WHERE userId = @userId AND materialId = @materialId";
+                checkCommand.Parameters.AddWithValue("@userId", userId);
+                checkCommand.Parameters.AddWithValue("@materialId", materialId);
 
-                command.Parameters.AddWithValue("@userId", userId);
-                command.Parameters.AddWithValue("@materialId", materialId);
+                long exists = (long)await checkCommand.ExecuteScalarAsync();
 
-                await command.ExecuteNonQueryAsync();
-                _logger.LogInformation($"Consulta registrada/actualizada: Usuario {userId}, Material {materialId}");
+                if (exists > 0)
+                {
+                    // Hacer UPDATE explícito (esto SÍ dispara el trigger de UPDATE)
+                    using var updateCommand = connection.CreateCommand();
+                    updateCommand.CommandText = @"
+                UPDATE UserSearch 
+                SET ultimaConsulta = datetime('now', 'utc')
+                WHERE userId = @userId AND materialId = @materialId";
+                    updateCommand.Parameters.AddWithValue("@userId", userId);
+                    updateCommand.Parameters.AddWithValue("@materialId", materialId);
+
+                    await updateCommand.ExecuteNonQueryAsync();
+                    _logger.LogInformation($"Consulta ACTUALIZADA: Usuario {userId}, Material {materialId}");
+                }
+                else
+                {
+                    // Hacer INSERT (esto SÍ dispara el trigger de INSERT)
+                    using var insertCommand = connection.CreateCommand();
+                    insertCommand.CommandText = @"
+                INSERT INTO UserSearch (userId, materialId, ultimaConsulta)
+                VALUES (@userId, @materialId, datetime('now', 'utc'))";
+                    insertCommand.Parameters.AddWithValue("@userId", userId);
+                    insertCommand.Parameters.AddWithValue("@materialId", materialId);
+
+                    await insertCommand.ExecuteNonQueryAsync();
+                    _logger.LogInformation($"Consulta INSERTADA: Usuario {userId}, Material {materialId}");
+                }
 
                 return true;
             }

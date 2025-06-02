@@ -8,6 +8,8 @@ namespace MicroserviciosRepoEscom.Models
         public string? NombreMaterial { get; set; }
         public string? Url { get; set; }
         public List<AutorCreateDTO>? Autores { get; set; }  // Lista de IDs de autores
-        public List<int>? TagIds { get; set; }   // Lista de IDs de tags
+
+        public List<int> AutoresIds { get; set; } = new List<int>();
+        public List<int> TagIds { get; set; } = new List<int>();
     }
 }

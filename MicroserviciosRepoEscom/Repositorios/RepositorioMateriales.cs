@@ -250,12 +250,22 @@ namespace MicroserviciosRepoEscom.Repositorios
             }
         }
 
-        public async Task<bool> UpdateMaterial(int id, MaterialUpdateDTO material, string? tipoArchivo = null)
+        public async Task<bool> UpdateMaterial(int id, MaterialUpdateDTO material, string? fileUrl = null, string? tipoArchivo = null)
         {
+            string rutaAcceso;
             using var connection = new SqliteConnection(_dbConfig.ConnectionString);
             await connection.OpenAsync();
 
-           using var transaction = connection.BeginTransaction();
+            if (tipoArchivo == "LINK")
+            {
+                rutaAcceso = fileUrl;
+            }
+            else
+            {
+                rutaAcceso = Path.Combine(_uploadsFolder, fileUrl);
+            }
+
+            using var transaction = connection.BeginTransaction();
 
            try
            {
@@ -288,10 +298,10 @@ namespace MicroserviciosRepoEscom.Repositorios
                     updateCommand.Parameters.AddWithValue("@nombre", material.NombreMaterial);
                 }
 
-                if(!string.IsNullOrEmpty(material.Url))
+                if(!string.IsNullOrEmpty(rutaAcceso))
                 {
                     fieldsToUpdate.Add("url = @url");
-                    updateCommand.Parameters.AddWithValue("@url", material.Url);
+                    updateCommand.Parameters.AddWithValue("@url", rutaAcceso);
                 }
 
                 if(!string.IsNullOrEmpty(tipoArchivo))
@@ -332,13 +342,13 @@ namespace MicroserviciosRepoEscom.Repositorios
                     }
 
                     // Agregar nuevas relaciones
-                    foreach(var autorId in material.Autores)
+                    foreach(var autorId in material.AutoresIds)
                     {
                         using var insertCommand = connection.CreateCommand();
                         insertCommand.Transaction = transaction;
                         insertCommand.CommandText = @"
-                    INSERT INTO AutorMaterial (autorId, materialId)
-                    VALUES (@autorId, @materialId)";
+                            INSERT INTO AutorMaterial (autorId, materialId)
+                            VALUES (@autorId, @materialId)";
                         insertCommand.Parameters.AddWithValue("@autorId", autorId);
                         insertCommand.Parameters.AddWithValue("@materialId", id);
 
@@ -364,8 +374,8 @@ namespace MicroserviciosRepoEscom.Repositorios
                         using var insertCommand = connection.CreateCommand();
                         insertCommand.Transaction = transaction;
                         insertCommand.CommandText = @"
-                    INSERT INTO MaterialTag (tagId, materialId)
-                    VALUES (@tagId, @materialId)";
+                            INSERT INTO MaterialTag (tagId, materialId)
+                            VALUES (@tagId, @materialId)";
                         insertCommand.Parameters.AddWithValue("@tagId", tagId);
                         insertCommand.Parameters.AddWithValue("@materialId", id);
 

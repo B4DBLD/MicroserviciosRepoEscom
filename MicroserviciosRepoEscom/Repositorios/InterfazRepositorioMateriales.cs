@@ -7,7 +7,7 @@ namespace MicroserviciosRepoEscom.Repositorios
             Task<IEnumerable<Material>> GetAllMateriales(int? userRol = null);
             Task<MaterialConRelacionesDTO?> GetMaterialById(int id, int? userRol = null);
             Task<int> CreateMaterial(MaterialCreateDTO material, string? fileUrl = null, string? tipoArchivo = null);
-            Task<bool> UpdateMaterial(int id, MaterialUpdateDTO material, string? tipoArchivo = null);
+            Task<bool> UpdateMaterial(int id, MaterialUpdateDTO material, string? fileUrl = null, string? tipoArchivo = null);
             Task<bool> DeleteMaterial(int id);
             Task<IEnumerable<MaterialConRelacionesDTO>> GetMaterialesByAutorId(int autorId, int? userId = null);
             Task<IEnumerable<MaterialConRelacionesDTO>> GetMaterialesByTagId(int tagId, int? userRol = null);

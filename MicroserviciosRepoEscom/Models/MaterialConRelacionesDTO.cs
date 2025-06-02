@@ -9,6 +9,7 @@
         public int Disponible { get; set; } = 0;
         public int Status { get; set; } = 0;
         public int? CreadoPor { get; set; }
+        public bool Favorito { get; set; } = false;
         public string FechaCreacion { get; set; } = string.Empty;
         public string FechaActualizacion { get; set; } = string.Empty;
         
