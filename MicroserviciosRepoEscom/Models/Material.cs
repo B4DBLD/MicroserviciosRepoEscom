@@ -16,7 +16,8 @@ namespace MicroserviciosRepoEscom.Models
         public string TipoArchivo { get; set; } = string.Empty;
         public int Disponible { get; set; } = 0; // 0 = deshabilitado, 1 = habilitado
         public int Status { get; set; } = 0;
-        public int? CreadoPor { get; set; }
+        public string? CreadoPor { get; set; }
+        public int? CreadorId { get; set; }
 
         public string FechaCreacion { get; set; } = string.Empty;
         public string FechaActualizacion { get; set; } = string.Empty;

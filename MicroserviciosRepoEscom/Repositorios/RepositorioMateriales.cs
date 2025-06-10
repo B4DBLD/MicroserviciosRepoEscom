@@ -36,8 +36,12 @@ namespace MicroserviciosRepoEscom.Repositorios
 
             using var command = connection.CreateCommand();
             command.CommandText = $@"
-                SELECT id, nombre, url, tipoArchivo, disponible, status, fechaCreacion, fechaActualizacion 
-                FROM Material 
+                SELECT m.id, m.nombre, m.url, m.tipoArchivo, m.disponible, m.status, 
+                       COALESCE(u.nombre || ' ' || u.apellidoP || COALESCE(' ' || u.apellidoM, ''), 'Sin asignar') as creadoPor,
+                       m.creadoPor as creadorId,
+                       m.fechaCreacion, m.fechaActualizacion 
+                FROM Material m
+                LEFT JOIN Usuario u ON m.creadoPor = u.id
                 {whereClause}"; // Solo materiales habilitados
 
             using var reader = await command.ExecuteReaderAsync();
@@ -61,8 +65,10 @@ namespace MicroserviciosRepoEscom.Repositorios
                     TipoArchivo = reader.GetString(3),
                     Disponible = reader.GetInt32(4),
                     Status = reader.GetInt32(5),
-                    FechaCreacion = reader.GetString(6),
-                    FechaActualizacion = reader.GetString(7)
+                    CreadoPor = reader.GetString(6), // Nombre completo del creador
+                    CreadorId = reader.IsDBNull(7) ? null : reader.GetInt32(7), // ID del creador
+                    FechaCreacion = reader.GetString(8),
+                    FechaActualizacion = reader.GetString(9)
                 });
             }
 
@@ -76,16 +82,20 @@ namespace MicroserviciosRepoEscom.Repositorios
 
             // Construir consulta basada en el rol
             string whereClause = (userRol == 3 || userRol == 2)
-                ? "WHERE id = @id" // Admin ve todos
-                : "WHERE id = @id AND disponible = 1"; // Alumno solo ve disponibles
+                ? "WHERE m.id = @id" // Admin ve todos
+                : "WHERE m.id = @id AND m.disponible = 1"; // Alumno solo ve disponibles
 
 
             
             // Obtener el material
             using var command = connection.CreateCommand();
             command.CommandText = $@"
-                SELECT id, nombre, url, tipoArchivo, disponible, status, fechaCreacion, fechaActualizacion 
-                FROM Material 
+                SELECT m.id, m.nombre, m.url, m.tipoArchivo, m.disponible, m.status,
+                       COALESCE(u.nombre || ' ' || u.apellidoP || COALESCE(' ' || u.apellidoM, ''), 'Sin asignar') as creadoPor,
+                       m.creadoPor as creadorId,
+                       m.fechaCreacion, m.fechaActualizacion 
+                FROM Material m
+                LEFT JOIN Usuario u ON m.creadoPor = u.id
                 {whereClause}"; // Solo materiales habilitados
             command.Parameters.AddWithValue("@id", id);
 
@@ -105,8 +115,10 @@ namespace MicroserviciosRepoEscom.Repositorios
                 TipoArchivo = reader.GetString(3),
                 Disponible = reader.GetInt32(4),
                 Status = reader.GetInt32(5),
-                FechaCreacion = reader.GetString(6),
-                FechaActualizacion = reader.GetString(7),
+                CreadoPor = reader.GetString(6), // Nombre del creador
+                CreadorId = reader.IsDBNull(7) ? null : reader.GetInt32(7), // ID del creador
+                FechaCreacion = reader.GetString(8),
+                FechaActualizacion = reader.GetString(9),
                 Autores = new List<Autor>(),
                 Tags = new List<Tag>()
             };
@@ -836,10 +848,13 @@ namespace MicroserviciosRepoEscom.Repositorios
 
             using var command = connection.CreateCommand();
             command.CommandText = @"
-                SELECT id, nombre, url, tipoArchivo, disponible, status, creadoPor, fechaCreacion, fechaActualizacion 
-                FROM Material 
-                WHERE creadoPor = @userId
-                ORDER BY fechaCreacion DESC";
+                SELECT m.id, m.nombre, m.url, m.tipoArchivo, m.disponible, m.status, 
+                       COALESCE(u.nombre, 'Sin asignar') as creadoPor,
+                       m.fechaCreacion, m.fechaActualizacion 
+                FROM Material m
+                LEFT JOIN Usuario u ON m.creadoPor = u.id
+                WHERE m.creadoPor = @userId
+                ORDER BY m.fechaCreacion DESC";
             command.Parameters.AddWithValue("@userId", userId);
 
             using var reader = await command.ExecuteReaderAsync();
@@ -863,7 +878,7 @@ namespace MicroserviciosRepoEscom.Repositorios
                     TipoArchivo = reader.GetString(3),
                     Disponible = reader.GetInt32(4),
                     Status = reader.GetInt32(5),
-                    CreadoPor = reader.GetInt32(6),
+                    CreadoPor = reader.GetString(6), // Nombre del creador
                     FechaCreacion = reader.GetString(7),
                     FechaActualizacion = reader.GetString(8)
                 });
