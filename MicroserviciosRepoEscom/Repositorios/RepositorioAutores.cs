@@ -346,26 +346,28 @@ namespace MicroserviciosRepoEscom.Repositorios
             using var connection = new SqliteConnection(_dbConfig.ConnectionString);
             await connection.OpenAsync();
             using var command = connection.CreateCommand();
-            command.CommandText = @$"
-                DELETE FROM UsuarioAutor 
-                {whereClause}";
 
-            if(usuarioId.HasValue && autorId.HasValue)
+            if (usuarioId != null && autorId != null)
             {
                 whereClause = "usuarioId = @usuarioId AND autorId = @autorId";
                 command.Parameters.AddWithValue("@usuarioId", usuarioId.Value);
                 command.Parameters.AddWithValue("@autorId", autorId.Value);
             }
-            else if(usuarioId.HasValue)
+            else if (usuarioId != null)
             {
                 whereClause = "usuarioId = @usuarioId";
                 command.Parameters.AddWithValue("@usuarioId", usuarioId.Value);
             }
-            else if(autorId.HasValue)
+            else if (autorId != null)
             {
                 whereClause = "autorId = @autorId";
                 command.Parameters.AddWithValue("@autorId", autorId.Value);
             }
+
+            command.CommandText = @$"
+                DELETE FROM UsuarioAutor 
+                where {whereClause}";
+            
             int rowsAffected = await command.ExecuteNonQueryAsync();
             return rowsAffected > 0;
 
