@@ -121,7 +121,7 @@ namespace MicroserviciosRepoEscom.Controllers
                         }
                         try
                         {
-                            Response.Headers.Add("Content-Disposition", $"inline; filename=\"{material.Nombre}.pdf\"");
+                            Response.Headers.Add("Content-Disposition", $"inline; filename=\"{Uri.EscapeDataString(material.Nombre)}.pdf\"");
 
                             // Habilita el cacheo para mejorar el rendimiento
                             Response.Headers.Add("Cache-Control", "public, max-age=3600");

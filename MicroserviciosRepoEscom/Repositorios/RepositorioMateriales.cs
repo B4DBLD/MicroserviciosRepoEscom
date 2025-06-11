@@ -264,17 +264,20 @@ namespace MicroserviciosRepoEscom.Repositorios
 
         public async Task<bool> UpdateMaterial(int id, MaterialUpdateDTO material, string? fileUrl = null, string? tipoArchivo = null)
         {
-            string rutaAcceso;
+            string? rutaAcceso = null;
             using var connection = new SqliteConnection(_dbConfig.ConnectionString);
             await connection.OpenAsync();
 
-            if (tipoArchivo == "LINK")
+            if (!string.IsNullOrEmpty(tipoArchivo))
             {
-                rutaAcceso = fileUrl;
-            }
-            else
-            {
-                rutaAcceso = Path.Combine(_uploadsFolder, fileUrl);
+                if (tipoArchivo == "LINK")
+                {
+                    rutaAcceso = fileUrl;
+                }
+                else if (!string.IsNullOrEmpty(fileUrl))
+                {
+                    rutaAcceso = Path.Combine(_uploadsFolder, fileUrl);
+                }
             }
 
             using var transaction = connection.BeginTransaction();
